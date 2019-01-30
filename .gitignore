@@ -1,0 +1,6 @@
+*.swp
+*.bin
+*.abi
+node_modules
+build
+.vscode
