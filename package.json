@@ -3,6 +3,7 @@
   "version": "0.0.2",
   "description": "Frontend example using truffle v3",
   "scripts": {
+    "compile": "truffle compile",
     "lint": "eslint ./",
     "build": "webpack",
     "dev": "webpack-dev-server"
@@ -46,9 +47,9 @@
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",
     "openzeppelin-solidity": "1.11.0",
-    "truffle": "^4.1.15",
-    "truffle-flattener": "^1.2.9",
-    "truffle-hdwallet-provider": "^1.0.0-web3one.5"
+    "truffle": "^5.0.2",
+    "truffle-flattener": "^1.2.11",
+    "truffle-hdwallet-provider": "^1.0.2"
   },
   "keywords": []
 }
