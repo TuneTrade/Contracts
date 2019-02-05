@@ -1,391 +1,504 @@
-pragma solidity ^0.5.0;
-/* pragma experimental ABIEncoderV2; */
+pragma solidity 0.5.0;
 
-
-import "./StandardToken.sol";
-import "./Crowdsale.sol";
-import "./Ownable.sol";
-
-/// @author         Robert Magier
-/// @title          SongCrowdSale
-/// @notice         This is Song ICO sale contract based on Open Zeppelin Crowdsale contract.
-///                 It's purpose is to sell song tokens in main sale and presale.
-
-
-
-contract SongCrowdSale is Crowdsale, Ownable
-{
-    enum State {PreSale,Campaign,Ended,Refund,Closed}
-    /// @param teamTokens number of tokens reserved for a team. It is not possible to sell them.
-    uint256 public teamTokens;
-    /// @param minPreSale minimum amount of tokens sold in presale. If not sold then it is not possible to go to main
-    /// sale.
-    uint256 public minPreSaleETH;
-    /// @param minimum number of tokens which have to be sold in MainSale so it is successfull. If not then contributors
-    /// are allowed to have a refund.
-    uint256 public minMainSaleETH;
-    /// @param maximum Ether contribution. Sale contract can't sell tokens for more than this number.
-    uint256 maxEth;
-    /// @param maxCap maximum number of tokens which can be sold.
-    uint256 maxCap;
-    ///@param minCap minimum number of tokens which have to be sold or sale will be cancelled.
-    uint256 minCap;
-    /// @param durationDays main sale campaign duration in days
-    uint256 durationDays;
-    /// @param preSaleDays - presale capaign duration in days
-    uint256 preSaleDays;
-
-    uint256 preSaleEnd;
-    uint256 saleEnd;
-
-
-    uint256 bonusPresalePeriod;
-    uint256 firstPeriod;
-    uint256 secondPeriod;
-    uint256 thirdPeriod;
-
-    uint256 bonusPreSaleValue;
-    uint256 bonusFirstValue;
-    uint256 bonusSecondValue;
-    uint256 bonusThirdValue;
-
-
-    // 0 - presale 1 - first period 2-second period 3 - third period
-    uint256 volume;
-    uint256 phase=1;
-
-    uint saleStart;
-
-    bool refundAvailable = false;
-    bool closed = false;
-    bool isRefundable = false;
-
-    mapping (address=>uint256) collectedFunds;
-
-    bool debug = true;
-    uint256 testNow = 0;
-
-
-    function DefineBonusValues(uint8 value1, uint8 value2, uint8 value3, uint8 value4) internal  returns (bool)
-    {
-        bonusPreSaleValue = value1;
-        bonusFirstValue = value2;
-        bonusSecondValue = value3;
-        bonusThirdValue = value4;
-        return true;
-    }
-
-    function DefineBonusPeriods(uint8 period1,uint8 period2,  uint8 period3, uint8 period4) internal  returns (bool)
-    {
-        bonusPresalePeriod = period1;
-        firstPeriod = period2;
-        secondPeriod = period3;
-        thirdPeriod = period4;
-        return true;
-    }
-
-
-///@notice Return bonus value for current moment in %. If sale is already out of bonus period it will return 0.
-///@dev It will fail if for any reason now is smaller than saleStart
-    function currentBonusValue() internal view returns (uint256)
-    {
-        if (_campaignState() == State.PreSale) {
-            if (_now() <= (saleStart + (bonusPresalePeriod * 24 * 60 * 60))) {
-                return bonusPreSaleValue;
-            }
-            return 0;
-
-        }
-        if(_campaignState() == State.Campaign) {
-            if (_now() > ((preSaleEnd + (firstPeriod + secondPeriod + thirdPeriod) * 24 * 3600 ))) return 0;
-            if (_now() > ((preSaleEnd + (firstPeriod + secondPeriod) * 24 * 3600 ))) return bonusThirdValue;
-            if (_now() > ((preSaleEnd + (firstPeriod) * 24 * 3600 ))) return bonusSecondValue;
-            if (_now() > (preSaleEnd)) return bonusFirstValue;
-            return 0;
-        }
-        return 0;
-
-    }
-
-    function _campaignState() internal view returns (State _state)
-    {
-  /* enum State {PreSale,Campaign,Ended, Refund} */
-        if (refundAvailable) return State.Refund;
-        if (closed) return State.Closed;
-        if (_now() <= preSaleEnd) return State.PreSale;
-        if (_now() > preSaleEnd && _now() <= saleEnd)
-        {
-            if(weiRaised < minPreSaleETH) return State.Refund;
-            else return State.Campaign;
-        }
-        if (weiRaised < minMainSaleETH) return State.Refund;
-
-        if (minCap > 0 ) {
-            if(volume < minCap && _now() > saleEnd) return State.Refund;
-        }
-
-        return State.Ended;
-    }
-
-    function CampaignState() public view returns(string memory) {
-        if(_campaignState() == State.PreSale) return "Presale";
-        if(_campaignState() == State.Refund) return "Refund";
-        if(_campaignState() == State.Campaign) return "Main Sale";
-        if(_campaignState() == State.Ended) return "Ended";
-        if(_campaignState() == State.Closed) return "Closed";
-    }
-
-    /// @param _newwallet new wallet address. Must not be zero.
-    /// @notice This function change wallet address
-    function ChangeWallet (address payable _newwallet) public onlyOwner returns (bool)
-    {
-        require (_newwallet != address(0),"New Wallet is zero");
-        wallet = _newwallet;
-    }
-
-    /// @notice This function sets tokenaddress if it hasn't been yet set.
-    /// @dev You can call this function only once. If you set token and it is wrong address then you have to create new crowdsale function
-
-    function SetTokenAddress (address _tokenAddress) public onlyOwner returns (bool)
-    {
-        require (_tokenAddress != address(0x0),"Token Address is Zero");
-        require (token == ERC20(0x0),"Token was already defined");
-
-        token = ERC20( _tokenAddress);
-    }
-
-    // !!! rate is defined as TOKENS ( full tokens not mini tokens ) per ETH. To calculate minitokens per wei we have to
-    // multiply it by 10 to power of decimals and divide by 10 to power of 18 ( because there is 10^18 weis in ETH)
-    // and then we can multiply it by amount of wei to get number of tokens.
-    // token_amount = ((price * 10**decimals) * weiAmount) / 10**18
-
-    function TokensForWei(
-        uint256 wei_amount,uint256 decimals, uint256 _rate) 
-        public view returns(
-            uint256 _minitokensAmount, uint256 _tokensAmount,uint256 _valueInWei, uint256 _weiToReturn) 
-    {
-        uint256 tokensAmount;
-        uint256 minitokensAmount;
-        uint256 base = 10;
-        minitokensAmount = _rate.mul(base**decimals).mul(wei_amount).div(10 ** 18);
-        tokensAmount = minitokensAmount.div(base**decimals);
-        uint256 valueInWei = minitokensAmount.mul(10**18).div(10**decimals).div(_rate);
-        uint256 weiToReturn = wei_amount.sub(valueInWei);
-        return(minitokensAmount,tokensAmount,valueInWei, weiToReturn);
-    }
-
-    constructor (
-        uint _rate,address payable _wallet, ERC20 _song, uint _teamTokens,uint256[] memory constraints,
-        uint _duration, uint _presaleduration,uint8[] memory bonuses
-        ) 
-        public Crowdsale(_rate,_wallet,ERC20(_song))
-    {
-
-
-        uint _minpresale = constraints[0];
-        uint _minMainSaleETH = constraints[1];
-        uint _maxEth = constraints[2];
-        uint _maxCap = constraints[3];
-        uint _minCap = constraints[4];
-
-        token = _song;
-
-        minPreSaleETH = _minpresale;
-        minMainSaleETH = _minMainSaleETH;
-        maxEth = _maxEth;
-        maxCap = _maxCap;
-        minCap = _minCap;
-        durationDays = _duration;
-        preSaleDays = _presaleduration;
-        saleStart = _now();
-        preSaleEnd = saleStart + (preSaleDays * 24 * 60 * 60);
-        saleEnd = preSaleEnd + (durationDays * 24 * 60 * 60);
-        teamTokens = _teamTokens;
-        owner = tx.origin;
-
-        if(bonuses.length==8)
-        {
-            require (bonuses[0] <= preSaleDays, "Presale Bonus period must be smaller than presale period"); // bonus period for presale must be smaller or equal than presale itself. Make sense ?
-            require ((bonuses[2] + bonuses [4] + bonuses[6]) <= durationDays,"Main Sale Bonus Period must be smaller then main sale period"); // same as above, but for main sale.
-            DefineBonusValues(bonuses[1],bonuses[3],bonuses[5],bonuses[7]);
-            DefineBonusPeriods(bonuses[0],bonuses[2],bonuses[4],bonuses[6]);
-        }
-
-        if ( minPreSaleETH > 0 || minMainSaleETH > 0 ) isRefundable = true;
-
-
-    }
-
-    function withdrawFunds() public returns(bool) {
-        require(msg.sender == wallet, "Only wallet address can withdraw funds");
-        require(_campaignState() == State.Ended,"Sale must be ended to receive funds");
-        uint256 toSend;
-        toSend = weiRaised;
-        weiRaised = 0;
-        msg.sender.transfer(toSend);
-        closed = true;
-    }
-
-    function _now() internal view returns (uint256) {
-        if (debug == true) return testNow;
-        else return block.timestamp;
-    }
-
-    function SetTestNow(uint256 _testNow) public onlyOwner {
-        testNow = _testNow;
-    }
-
-    function GetSaleInformation() public view returns (
-        uint256 _price,
-        address payable _wallet,
-        address _song,
-        uint256 _teamTokens,
-        uint256 _minpresale,
-        uint256 _minMainSaleETH,
-        uint256 _maxETH,
-        uint256 _minCap,
-        uint256 _duration,
-        uint256 _presaleduration
-        )
-    {
-        return (rate,wallet,address(token),teamTokens,minPreSaleETH,minMainSaleETH,maxEth,minCap, durationDays,preSaleDays);
-    }
-
-    function GetStats() public view returns (
-        uint256 _contribution,
-        uint256 _volume,
-        uint8 _phase,
-        uint256 _bonus
-    )
-    {
-        uint256 bonus = currentBonusValue();
-        return (weiRaised, volume,uint8(phase), bonus );
-    }
-
-    function _processPurchase(
-        address _beneficiary,
-        uint256 _tokenAmount
-    )
-    internal
-    {
-        _deliverTokens(_beneficiary, _tokenAmount);
-    }
+import "./interfaces/IERC20.sol";
+import "./helpers/SafeMath.sol";
+import "./helpers/Ownable.sol";
 
 /**
- * @dev low level token purchase ***DO NOT OVERRIDE***
- * @param _beneficiary Address performing the token purchase
+ * @title SongCrowdSale
+ * @dev This is Song ICO sale contract based on Open Zeppelin Crowdsale contract.
+ * @dev It's purpose is to sell song tokens in main sale and presale.
  */
-    function buyTokens(address _beneficiary) public payable returns(bool)  {
-        require (refundAvailable == false, "Sale can not be in refund State");
-        require (_campaignState() != State.Ended, "Campaing can not be ended");
-        if (_campaignState() == State.Refund) {
-            refundAvailable = true;
-            msg.sender.transfer(msg.value);
-            return true;
-        }
-        uint256 weiAmount = msg.value;
-        /* _preValidatePurchase(_beneficiary, weiAmount); */
+contract SongCrowdSale is Ownable {
+	using SafeMath for uint256;
 
-        // calculate token amount to be created
-        uint256 tokens;
-        tokens = _getTokenAmount(weiAmount);
-        _processPurchase(_beneficiary, tokens);
-        emit TokenPurchase(
-            msg.sender,
-            _beneficiary,
-            weiAmount,
-            tokens
-        );
-        _updatePurchasingState(_beneficiary, weiAmount, tokens);
-        _postValidatePurchase(_beneficiary, weiAmount);
-    }
+	uint256 public rate;
+	uint256 public weiRaised;
+	uint256 public teamTokens;
 
-    function _getTokenAmount(uint256 _weiAmount)
-    internal view returns (uint256 _tokens)
-    {
-  /* function TokensForWei(uint256 wei_amount,uint256 decimals, uint256 _rate) public view returns(uint256 _minitokensAmount, uint256 _tokensAmount,uint256 _valueInWei, uint256 _weiToReturn) { */
-        uint256 tokenAmount = _weiAmount.mul(rate);
-        return tokenAmount.mul(100 + currentBonusValue()).div(100);
-    }
+	uint256 public minPreSaleETH;
+	uint256 public minMainSaleETH;
 
+	uint256 public maxEth;
+	uint256 public maxCap;
+	uint256 public minCap;
 
-    function _preValidatePurchase(
-        address _beneficiary,
-        uint256 _weiAmount
-    )
-    internal
-    {
-        require(_beneficiary != address(0),"Beneficiary can not be zero address");
-        require(_weiAmount > 0,"Wei Amount must be greater than zero");
-    }
+	uint256 public durationDays;
+	uint256 public preSaleDays;
+	uint256 public preSaleEnd;
+	uint256 public saleEnd;
 
-    function _postValidatePurchase(
-        address _beneficiary,
-        uint256 _weiAmount
-    )
-    internal
-    {
-        if(maxEth > 0) {
-            require(weiRaised < maxEth,"Can not raise more than Max Eth");
-        }
-        if(maxCap > 0) {
-            require(volume < maxCap, "Can not sell more tokens than max Cap");
-        }
-        //cancel if there is not enough tokens for a team
-        require(teamTokens <= _balance(address(this)), "Sale not possible because there must be enough tokens for a team");
-    }
+	uint256 public bonusPresalePeriod;
+	uint256 public firstPeriod;
+	uint256 public secondPeriod;
+	uint256 public thirdPeriod;
 
-    function _balance(address _who) internal returns (uint256)
-    {
-        return token.balanceOf(_who);
-    }
+	uint256 public bonusPreSaleValue;
+	uint256 public bonusFirstValue;
+	uint256 public bonusSecondValue;
+	uint256 public bonusThirdValue;
 
-    function _updatePurchasingState(
-        address _beneficiary,
-        uint256 _weiAmount,uint256 _tokenAmount
-    )
-    internal
-    {
-        collectedFunds[_beneficiary] = collectedFunds[_beneficiary].add(_weiAmount);
-        volume = volume.add(_tokenAmount);
-        weiRaised = weiRaised.add(_weiAmount);
-    }
+	uint256 public saleStart;
+	uint256 public volume;
+	uint256 public phase = 1;
 
-    function () external payable 
-    {
-        buyTokens(msg.sender);
-    }
+	// The token being sold
+	IERC20 public token;
 
-    function refund() public {
-        require(collectedFunds[msg.sender] > 0,"User must have some funds to get refund");
-        require(refundAvailable || _campaignState() == State.Refund,"Refund must be available or Campaing must be in Refund State");
-        refundAvailable = true;
-        uint256 toRefund = collectedFunds[msg.sender];
-        collectedFunds[msg.sender] = 0;
-        msg.sender.transfer(toRefund);
-    }
+	// Address where funds will collected
+	address payable public wallet;
 
+	bool public closed;
+	bool public refundAvailable;
+	bool public isRefundable;
 
-    function _deliverTokens(
-        address _beneficiary,
-        uint256 _tokenAmount
-    )
-    internal
-    {
-        token.transfer(_beneficiary, _tokenAmount);
-        if(isRefundable == false) {
-            _forwardFunds();
-        }
-    }
+	enum State { PreSale, Campaign, Ended, Refund, Closed }
 
-    function GetBalance() public view returns(uint256) 
-    {
-        return token.balanceOf(address(this)).sub(teamTokens);
-    }
+	mapping (address => uint256) public collectedFunds;
 
-    function GetToken() public view returns(address) 
-    {
-        return address(token);
-    }
+	bool public debug = true;
+	uint256 public testNow = 0;
 
+	/**
+	 * Event for token purchase logging
+	 * @param purchaser who paid for the tokens
+	 * @param beneficiary who got the tokens
+	 * @param value weis paid for purchase
+	 * @param amount amount of tokens purchased
+	 */
+	event TokenPurchase (
+		address indexed purchaser,
+		address indexed beneficiary,
+		uint256 value,
+		uint256 amount
+	);
+
+	/**
+	 * @dev SongCrowdsale Constructor
+	 */
+	constructor (
+		uint256 _rate,
+		address payable _wallet,
+		IERC20 _song,
+		uint256 _teamTokens,
+		uint256[] memory constraints,
+		uint256 _duration,
+		uint256 _presaleduration,
+		uint8[] memory bonuses
+	) public {
+		require(_rate > 0, "SongCrowdSale: the rate should be bigger then zero");
+		require(_wallet != address(0), "SongCrowdSale: invalid wallet address");
+		require(address(_song) != address(0), "SongCrowdSale: invalid SongERC20 token address");
+
+		rate = _rate;
+		wallet = _wallet;
+		token = _song;
+		minPreSaleETH = constraints[0];
+		minMainSaleETH = constraints[1];
+		maxEth = constraints[2];
+		maxCap = constraints[3];
+		minCap = constraints[4];
+		durationDays = _duration;
+		preSaleDays = _presaleduration;
+		saleStart = _now();
+		preSaleEnd = saleStart + (preSaleDays * 24 * 60 * 60);
+		saleEnd = preSaleEnd + (durationDays * 24 * 60 * 60);
+		teamTokens = _teamTokens;
+
+		if (bonuses.length == 8) {
+			// The bonus periods for presale and main sale must be smaller or equal than presale and mainsail themselves
+			require(bonuses[0] <= preSaleDays, "SongCrowdSale: the presale bonus period must be smaller than presale period");
+			require((bonuses[2] + bonuses [4] + bonuses[6]) <= durationDays, "SongCrowdSale: the main sale bonus period must be smaller then main sale period");
+
+			_defineBonusValues(bonuses[1], bonuses[3], bonuses[5], bonuses[7]);
+			_defineBonusPeriods(bonuses[0], bonuses[2], bonuses[4], bonuses[6]);
+		}
+
+		if (minPreSaleETH > 0 || minMainSaleETH > 0) {
+			isRefundable = true;
+		}
+	}
+
+	/**
+	 * @dev fallback function ***DO NOT OVERRIDE***
+	 * Note that other contracts will transfer fund with a base gas stipend
+	 * of 2300, which is not enough to call buyTokens. Consider calling
+	 * buyTokens directly when purchasing tokens from a contract.
+	 */
+	function () external payable {
+		buyTokens(msg.sender);
+	}
+
+	/**
+	 * @dev low level token purchase ***DO NOT OVERRIDE***
+	 * @param _beneficiary Address performing the token purchase
+	 */
+	function buyTokens(address _beneficiary) public payable {
+		_preValidatePurchase(_beneficiary, msg.value);
+
+		if (refundAvailable == true || _campaignState() == State.Refund) {
+			if (refundAvailable == false) {
+				refundAvailable = true;
+			}
+
+			msg.sender.transfer(msg.value);
+		} else {
+			uint256 weiAmount = msg.value;
+			uint256 tokens = _getTokenAmount(weiAmount);
+
+			_processPurchase(_beneficiary, tokens);
+			_updatePurchasingState(_beneficiary, weiAmount, tokens);
+			_postValidatePurchase();
+
+			emit TokenPurchase(
+				msg.sender,
+				_beneficiary,
+				weiAmount,
+				tokens
+			);
+		}
+	}
+
+	// -----------------------------------------
+	// SETTERS
+	// -----------------------------------------
+
+	/**
+	 * @dev refund invested amount if the crowdsale has finished and the refund is available
+	 */
+	function refund() external {
+		require(collectedFunds[msg.sender] > 0, "refund: user must have some funds to get refund");
+		require(refundAvailable || _campaignState() == State.Refund, "refund: refund must be available or Campaing must be in Refund State");
+
+		uint256 toRefund = collectedFunds[msg.sender];
+		collectedFunds[msg.sender] = 0;
+
+		if (refundAvailable == false) {
+			refundAvailable = true;
+		}
+
+		msg.sender.transfer(toRefund);
+	}
+
+	/**
+	 * @dev only the owner can change the wallet address
+	 * @return true if transaction successed
+	 */
+	function changeWallet(address payable _newWallet) public onlyOwner returns (bool) {
+		require(_newWallet != address(0), "changeWallet: the new wallet address is invalid");
+		wallet = _newWallet;
+
+		return true;
+	}
+
+	/**
+	 * @dev the wallet address can withdraw all funds in this contract after if the crowdasle finished
+	 * @return true if transaction successed
+	 */
+	function withdrawFunds() public returns (bool) {
+		require(msg.sender == wallet, "withdrawFunds: only wallet address can withdraw funds");
+		require(_campaignState() == State.Ended, "withdrawFunds: sale must be ended to receive funds");
+
+		wallet.transfer(address(this).balance);
+		closed = true;
+
+		return true;
+	}
+
+	/**
+	 * @dev set the test block.timestamp value (debug mode only)
+	 */
+	function setTestNow(uint256 _testNow) public onlyOwner {
+		testNow = _testNow;
+	}
+
+	// -----------------------------------------
+	// INTERNAL
+	// -----------------------------------------
+
+	/**
+	 * @dev Validation of an incoming purchase. Use require statements to revert state when conditions are not met.
+	 * Use `super` in contracts that inherit from Crowdsale to extend their validations.
+	 * Example from CappedCrowdsale.sol's _preValidatePurchase method:
+	 *     super._preValidatePurchase(beneficiary, weiAmount);
+	 *     require(weiRaised().add(weiAmount) <= cap);
+	 * @param _beneficiary Address performing the token purchase
+	 * @param _weiAmount Value in wei involved in the purchase
+	 */
+	function _preValidatePurchase(address _beneficiary, uint256 _weiAmount) private view {
+		require(_beneficiary != address(0), "_preValidatePurchase: beneficiary can not be the zero address");
+		require(_weiAmount > 0, "_preValidatePurchase: wei Amount must be greater than zero");
+		require(_campaignState() != State.Ended, "_preValidatePurchase: the campaign is already ended");
+		require(refundAvailable == false, "_preValidatePurchase: the sale is in refund state");
+	}
+
+	/**
+	 * @dev Executed when a purchase has been validated and is ready to be executed. Doesn't necessarily emit/send
+	 * tokens.
+	 * @param _beneficiary Address receiving the tokens
+	 * @param _tokenAmount Number of tokens to be purchased
+	 */
+	function _processPurchase(address _beneficiary, uint256 _tokenAmount) private {
+		_deliverTokens(_beneficiary, _tokenAmount);
+	}
+
+	/**
+	 * @dev Source of tokens. Override this method to modify the way in which the crowdsale ultimately gets and sends
+	 * its tokens.
+	 * @param _beneficiary Address performing the token purchase
+	 * @param _tokenAmount Number of tokens to be emitted
+	 */
+	function _deliverTokens(address _beneficiary, uint256 _tokenAmount) private {
+		token.transfer(_beneficiary, _tokenAmount);
+
+		if (isRefundable == false) {
+			_forwardFunds();
+		}
+	}
+
+	/**
+	 * @dev Determines how ETH is stored/forwarded on purchases.
+	 */
+	function _forwardFunds() private {
+		wallet.transfer(msg.value);
+	}
+
+	/**
+	 * @dev Validation of an executed purchase. Observe state and use revert statements to undo rollback when valid
+	 * conditions are not met.
+	 */
+	function _postValidatePurchase() private view {
+		if (maxEth > 0) {
+			require(weiRaised < maxEth, "_postValidatePurchase: can not raise more than the max Eth");
+		}
+
+		if (maxCap > 0) {
+			require(volume < maxCap, "_postValidatePurchase: can not sell more tokens than the max cap");
+		}
+
+		require(teamTokens <= _balanceOf(address(this)), "_postValidatePurchase: sale is not possible because there must be enough tokens for a team");
+	}
+
+	/**
+	 * @dev Override for extensions that require an internal state to check for validity (current user contributions,
+	 * etc.)
+	 * @param _beneficiary Address receiving the tokens
+	 * @param _weiAmount Value in wei involved in the purchase
+	 * @param _tokenAmount value which investor bought
+	 */
+	function _updatePurchasingState(address _beneficiary, uint256 _weiAmount, uint256 _tokenAmount) private {
+		volume = volume.add(_tokenAmount);
+		weiRaised = weiRaised.add(_weiAmount);
+		collectedFunds[_beneficiary] = collectedFunds[_beneficiary].add(_weiAmount);
+	}
+
+	/**
+	 * @return the state of the campaign
+	 */
+	function _campaignState() private view returns (State _state) {
+		if (refundAvailable == true) {
+			return State.Refund;
+		}
+
+		if (closed) {
+			return State.Closed;
+		}
+
+		if (_now() <= preSaleEnd) {
+			return State.PreSale;
+		}
+
+		if (_now() > preSaleEnd && _now() <= saleEnd) {
+			if (weiRaised < minPreSaleETH) {
+				return State.Refund;
+			} else {
+				return State.Campaign;
+			}
+		}
+		if (weiRaised < minMainSaleETH) {
+			return State.Refund;
+		}
+
+		if (minCap > 0 && volume < minCap && _now() > saleEnd) {
+			return State.Refund;
+		}
+
+		return State.Ended;
+	}
+
+	/**
+	 * @return the value of tokens based on the _weiAmount
+	 */
+	function _getTokenAmount(uint256 _weiAmount) private view returns (uint256) {
+		uint256 tokenAmount = _weiAmount.mul(rate);
+		return tokenAmount.mul(100 + _currentBonusValue()).div(100);
+	}
+
+	/**
+	 * @dev set the bonus values
+	 */
+	function _defineBonusValues(uint8 value1, uint8 value2, uint8 value3, uint8 value4) private returns (bool) {
+		bonusPreSaleValue = value1;
+		bonusFirstValue = value2;
+		bonusSecondValue = value3;
+		bonusThirdValue = value4;
+
+		return true;
+	}
+
+	/**
+	 * @dev set the bonus periods
+	 */
+	function _defineBonusPeriods(uint8 period1,uint8 period2,  uint8 period3, uint8 period4) private returns (bool) {
+		bonusPresalePeriod = period1;
+		firstPeriod = period2;
+		secondPeriod = period3;
+		thirdPeriod = period4;
+
+		return true;
+	}
+
+	/**
+	 * @return the current timestamp
+	 */
+	function _now() private view returns (uint256) {
+		if (debug == true) {
+			return testNow;
+		} else {
+			return block.timestamp;
+		}
+	}
+
+	/**
+	 * @return the bonus amount based on the current timestamp
+	 */
+	function _currentBonusValue() private view returns (uint256) {
+		if (_campaignState() == State.PreSale) {
+			if (_now() <= (saleStart + (bonusPresalePeriod * 24 * 60 * 60))) {
+				return bonusPreSaleValue;
+			}
+
+			return 0;
+		}
+
+		if (_campaignState() == State.Campaign) {
+			if (_now() > ((preSaleEnd + (firstPeriod + secondPeriod + thirdPeriod) * 24 * 3600 ))) return 0;
+			if (_now() > ((preSaleEnd + (firstPeriod + secondPeriod) * 24 * 3600 ))) return bonusThirdValue;
+			if (_now() > ((preSaleEnd + (firstPeriod) * 24 * 3600 ))) return bonusSecondValue;
+			if (_now() > (preSaleEnd)) return bonusFirstValue;
+
+			return 0;
+		}
+
+		return 0;
+	}
+
+	/**
+	 * @return the token balance of the _who
+	 */
+	function _balanceOf(address _who) private view returns (uint256) {
+		return token.balanceOf(_who);
+	}
+
+	// -----------------------------------------
+	// GETTERS
+	// -----------------------------------------
+
+	/**
+	 * @return the token address
+	 */
+	function getToken() external view returns (address) {
+		return address(token);
+	}
+
+	/**
+	 * @return the token balance of this contract without team tokens amount
+	 */
+	function getBalance() external view returns (uint256) {
+		return token.balanceOf(address(this)).sub(teamTokens);
+	}
+
+	/**
+	 * @return the current state of this crowdsale
+	 */
+	function getCampaignState() external view returns (string memory) {
+		if (_campaignState() == State.PreSale) return "Presale";
+		if (_campaignState() == State.Refund) return "Refund";
+		if (_campaignState() == State.Campaign) return "Main Sale";
+		if (_campaignState() == State.Ended) return "Ended";
+		if (_campaignState() == State.Closed) return "Closed";
+	}
+
+	/**
+	 * @return calculated value for this _weiAmount, _decimals and _rate
+	 */
+	function getTokensForWei(uint256 _weiAmount, uint256 _decimals, uint256 _rate) external pure returns (
+		uint256,
+		uint256,
+		uint256,
+		uint256
+	) {
+		uint256 tokensAmount;
+		uint256 minitokensAmount;
+		uint256 base = 10;
+
+		minitokensAmount = _rate.mul(base**_decimals).mul(_weiAmount).div(10**18);
+		tokensAmount = minitokensAmount.div(base**_decimals);
+
+		uint256 valueInWei = minitokensAmount.mul(10**18).div(10**_decimals).div(_rate);
+		uint256 weiToReturn = _weiAmount.sub(valueInWei);
+
+		return (
+			minitokensAmount,
+			tokensAmount,
+			valueInWei,
+			weiToReturn
+		);
+	}
+
+	/**
+	 * @return the information about the crowdsale sale
+	 */
+	function getSaleInformation() external view returns (
+		uint256,
+		address,
+		address,
+		uint256,
+		uint256,
+		uint256,
+		uint256,
+		uint256,
+		uint256,
+		uint256
+	) {
+		return (
+			rate,
+			wallet,
+			address(token),
+			teamTokens,
+			minPreSaleETH,
+			minMainSaleETH,
+			maxEth,minCap,
+			durationDays,
+			preSaleDays
+		);
+	}
+
+	/**
+	 * @return the stats of the current state
+	 */
+	function getStats() external view returns (
+		uint256,
+		uint256,
+		uint8,
+		uint256
+	) {
+		uint256 bonus = _currentBonusValue();
+		return (
+			weiRaised,
+			volume,
+			uint8(phase),
+			bonus
+		);
+	}
 }

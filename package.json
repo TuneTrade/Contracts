@@ -6,6 +6,7 @@
     "compile": "truffle compile",
     "lint": "eslint ./",
     "build": "webpack",
+    "test": "truffle test",
     "dev": "webpack-dev-server"
   },
   "author": "Douglas von Kohorn",

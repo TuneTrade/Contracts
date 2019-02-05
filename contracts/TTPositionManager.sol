@@ -1,130 +1,153 @@
-pragma solidity ^0.5.0;
+pragma solidity 0.5.0;
 
-import "./Ownable.sol";
+import "./helpers/Ownable.sol";
+import "./interfaces/IERC20.sol";
+import "./interfaces/ITuneTraderExchange.sol";
 
-interface Exchange 
-{
-    function TerminatePosition(bool closedOrCancelled) external;
-}
+/**
+ * @title TTPositionManager
+ */
+contract TTPositionManager {
+	uint256 public cost;
+	uint256 public volume;
+	uint256 public created;
 
-interface TokenContract 
-{
-    function balanceOf(address who) external view returns (uint256);
-    function transfer(address to, uint256 value) external returns (bool);
-}
+	enum Position { Buy, Sell }
+	Position public position;
 
-contract TTPositionManager is Ownable {
+	IERC20 public token;
 
-    event ReceivedPayment(uint256 weiAmount, address from);
-    event ReceivedTokens(uint256 tokenAmount, address tokenOwner, address from);
-    event PositionCancelled();
-    event PositionClosed();
+	address payable owner;
+	address public tokenExchange;
+	address public tokenReceiver;
 
-    address token;
-    uint256 volume;
-    bool buySell; //true - Buy, false - Sell
-    uint256 created;
-    uint256 cost;
-    address tokenReceiver;
-    address payable tokenSender;
-    address tokenExchange;
+	event PositionClosed();
+	event PositionCancelled();
+	event ReceivedPayment(uint256 weiAmount, address from);
+	event ReceivedTokens(uint256 tokenAmount, address tokenOwner, address from);
 
-        // TTPositionManager manager = new TTPositionManager(token, volume, BuySell, now, cost, msg.sender);
+	/**
+	 * @dev TTPositionManager Constructor
+	 */
+	constructor (address _token, uint256 _volume, bool _isBuyPosition, uint256 _cost, address payable _owner) public payable {
+		require(_isBuyPosition == false || msg.value == _cost, "TTPositionManager: the buying positions must include some ETH in the msg");
 
-    function tokenFallback(address payable _tokenSender, uint _value, bytes memory _data) public {
-        require(msg.sender == token, "Tokens can be accepted only from designated token conract"); 
-        uint256 balance = TokenContract(token).balanceOf(address(this));
-        require(balance == volume, "Contract only accepts exact token amount equal to volume");
-        
-        if (buySell == true ) {
-            require (address(this).balance == cost, "ETH to buy tokens must be already transfered to the contract");
-            tokenSender = _tokenSender;
-            TokenContract(token).transfer(owner,volume);
-            tokenSender.transfer(cost);
-            emit PositionClosed();
-            emit ReceivedTokens(balance, _tokenSender, msg.sender);
-            RemoveFromExchange();
-        } else {
-            emit ReceivedTokens(balance, _tokenSender, msg.sender);
-        }
+		owner = _owner;
+		token = IERC20(_token);
+		volume = _volume;
+		position = _isBuyPosition ? Position.Buy : Position.Sell;
+		cost = _cost;
+		created = block.timestamp;
+		tokenExchange = msg.sender;
+	}
 
-    }
+	// -----------------------------------------
+	// SETTERS
+	// -----------------------------------------
 
-    function BuyTokens() public payable {
-        require(buySell == false, "You can buy tokens only from selling positions" );
-        require(TokenContract(token).balanceOf(address(this)) == volume, "Tokens must be already transfered");
-        require (msg.value == cost, "You must send exact amount of ETH to buy tokens");
-        tokenReceiver = msg.sender;
-        TokenContract(token).transfer(msg.sender,volume);
-        owner.transfer(msg.value);
-        RemoveFromExchange();
-        emit ReceivedPayment(msg.value, msg.sender);
-        emit PositionClosed();
-    }
-    
-    constructor(address _token, uint256 _volume, bool _buySell, uint256 _cost, address payable _owner) public payable {
-        require(_buySell == false || msg.value == _cost,"Buying positions must be created with ETH");
-        token = _token;
-        volume = _volume; 
-        buySell = _buySell;
-        cost = _cost;
-        owner = _owner;
-        created = block.timestamp;
-        tokenExchange = msg.sender;
+	function buyTokens() external payable {
+		require(position == Position.Sell, "buyTokens: you can buy tokens only from selling positions");
+		require(token.balanceOf(address(this)) == volume, "buyTokens: tokens must be already transfered");
+		require(msg.value == cost, "buyTokens: you must send exact amount of ETH to buy tokens");
 
-    }
-    function RemoveFromExchange() internal  
-    {
-        Exchange(tokenExchange).TerminatePosition(true);
-        selfdestruct(owner); //send available funds to the owner
-    }
+		token.transfer(msg.sender, volume);
+		owner.transfer(msg.value);
 
-    function CancelPosition() public onlyOwner {
-        uint256 balance  = TokenContract(token).balanceOf(address(this));
-        if (buySell == true) { //buyig position. we have to send ETHEREUM back to the owner. 
-        //the question is what to do when by any chance there are tokens from token contract on this position. 
-        // We send it to Token Exchange Contract for manual action to be taken. 
-            if (balance > 0) {
-                TokenContract(token).transfer(tokenExchange, balance);
-            }
+		emit ReceivedPayment(msg.value, msg.sender);
+		emit PositionClosed();
 
-        } else { //this is sell position. Send back all tokens to the owner.
-            TokenContract(token).transfer(owner, balance);
-        }
-        
-        emit PositionCancelled();
-        Exchange(tokenExchange).TerminatePosition(false);      
-        selfdestruct(owner);
-    }
+		_removeFromExchange();
+	}
 
-    
+	function tokenFallback(address payable _tokenSender, uint256 _value) external {
+		require(msg.sender == address(token), "tokenFallback: tokens can be accepted only from designated token contract");
 
-    function GetPositionData() public view returns (
-        address _token, 
-        uint256 _volume, 
-        bool _buySell, 
-        uint256 _created, 
-        uint256 _cost, 
-        address payable _customer, 
-        address _managerAddress,
-        bool    _active,
-        uint256 _tokenBalance,
-        uint256 _weiBalance
-        ) 
-    {
-        bool active;
-        uint256 weiBalance = address(this).balance;
-        uint256 tokenBalance = TokenContract(token).balanceOf(address(this));
-        if (buySell == true) {  // this a position when somebody wants to buy tokens. They have to send ETH to make it happen.
-            if ( weiBalance >= cost) active = true;
-            else active = false;
-        } else {    // this is a position when somebody wants to sell tokens. 
-            if ( tokenBalance >= volume) active = true;
-            else active = false;
+		uint256 balance = token.balanceOf(address(this));
+		require(balance == volume, "tokenFallback: contract only accepts exact token amount equal to volume");
 
-        }
-        return (token, volume, buySell, created, cost, owner, address(this), active, tokenBalance, weiBalance);
-    }
+		if (position == Position.Buy) {
+			require(address(this).balance == cost, "tokenFallback: ETH to buy tokens must be already transfered to the contract");
 
+			// transfering the funds to the seller and to the buyer
+			token.transfer(owner, volume);
+			_tokenSender.transfer(cost);
 
+			emit PositionClosed();
+			emit ReceivedTokens(balance, _tokenSender, msg.sender);
+
+			_removeFromExchange();
+		} else {
+			emit ReceivedTokens(balance, _tokenSender, msg.sender);
+		}
+	}
+
+	function cancelPosition() external {
+		require(msg.sender == owner, "cancelPosition: only the owner can call this method");
+
+		uint256 balance = token.balanceOf(address(this));
+		if (position == Position.Buy) { //buyig position. we have to send ETHEREUM back to the owner.
+			//the question is what to do when by any chance there are tokens from token contract on this position.
+			// We send it to Token Exchange Contract for manual action to be taken.
+			if (balance > 0) {
+				token.transfer(tokenExchange, balance);
+			}
+		} else { //this is sell position. Send back all tokens to the owner.
+			token.transfer(owner, balance);
+		}
+
+		ITuneTraderExchange(tokenExchange).terminatePosition(false);
+
+		emit PositionCancelled();
+
+		selfdestruct(owner);
+	}
+
+	// -----------------------------------------
+	// INTERNAL
+	// -----------------------------------------
+
+	function _removeFromExchange() private {
+		ITuneTraderExchange(tokenExchange).terminatePosition(true);
+		selfdestruct(owner);
+	}
+
+	// -----------------------------------------
+	// GETTERS
+	// -----------------------------------------
+
+	function getPositionData() external view returns (
+		address _token,
+		uint256 _volume,
+		bool _buyPosition,
+		uint256 _created,
+		uint256 _cost,
+		address payable _customer,
+		address _managerAddress,
+		bool _active,
+		uint256 _tokenBalance,
+		uint256 _weiBalance
+	) {
+		bool active;
+		uint256 weiBalance = address(this).balance;
+		uint256 tokenBalance = token.balanceOf(address(this));
+
+		if (position == Position.Buy) { // this a position when somebody wants to buy tokens. They have to send ETH to make it happen.
+			active = weiBalance >= cost ? true : false;
+		} else {// this is a position when somebody wants to sell tokens.
+			active = tokenBalance >= volume ? true : false;
+		}
+
+		return (
+			address(token),
+			volume,
+			position == Position.Buy,
+			created,
+			cost,
+			owner,
+			address(this),
+			active,
+			tokenBalance,
+			weiBalance
+		);
+	}
 }
