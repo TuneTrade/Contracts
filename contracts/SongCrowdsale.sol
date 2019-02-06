@@ -84,8 +84,9 @@ contract SongCrowdSale is Ownable {
 		uint256[] memory constraints,
 		uint256 _duration,
 		uint256 _presaleduration,
-		uint8[] memory bonuses
-	) public {
+		uint8[] memory bonuses,
+		address _owner
+	) public Ownable(_owner) {
 		require(_rate > 0, "SongCrowdSale: the rate should be bigger then zero");
 		require(_wallet != address(0), "SongCrowdSale: invalid wallet address");
 		require(address(_song) != address(0), "SongCrowdSale: invalid SongERC20 token address");

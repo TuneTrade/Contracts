@@ -496,7 +496,7 @@ contract SongERC20 is ERC20Detailed, ERC20Burnable, ISongERC20 {
 
 		return (length > 0);
 	}
-
+	
 	// -----------------------------------------
 	// GETTERS
 	// -----------------------------------------
@@ -546,7 +546,7 @@ contract SongERC20 is ERC20Detailed, ERC20Burnable, ISongERC20 {
 			creationTime
 		);
 	}
-
+	
 	function getOwner() external view returns (address) {
 	    return owner;
 	}
@@ -568,8 +568,8 @@ contract Ownable {
 	 * @dev The Ownable constructor sets the original `owner` of the contract to the sender
 	 * account.
 	 */
-	constructor () internal {
-		_owner = msg.sender;
+	constructor (address owner) internal {
+		_owner = owner;
 		emit OwnershipTransferred(address(0), _owner);
 	}
 
@@ -722,8 +722,9 @@ contract SongCrowdSale is Ownable {
 		uint256[] memory constraints,
 		uint256 _duration,
 		uint256 _presaleduration,
-		uint8[] memory bonuses
-	) public {
+		uint8[] memory bonuses,
+		address _owner
+	) public Ownable(_owner) {
 		require(_rate > 0, "SongCrowdSale: the rate should be bigger then zero");
 		require(_wallet != address(0), "SongCrowdSale: invalid wallet address");
 		require(address(_song) != address(0), "SongCrowdSale: invalid SongERC20 token address");
@@ -1251,7 +1252,8 @@ contract TuneTrader is ITuneTraderManager {
 			constraints,
 			_durationDays,
 			_presaleDuration,
-			_bonuses
+			_bonuses,
+			msg.sender
 		);
 
 		songToken.assignICOTokens(address(saleContract), assignedTokens);
@@ -1379,6 +1381,11 @@ contract ContractStorage is Ownable, IContractStorage {
 		require(isOwner() == true || isAddressAuthorized(msg.sender) == true, "onlyAuthorized: the sender is not authorized or not the owner for using the ContractStorage");
 		_;
 	}
+
+    /**
+	 * @dev ContractStorage Constructor
+	 */
+	constructor (IContractStorage _storage) public Ownable(msg.sender) {}
 
 	// -----------------------------------------
 	// SETTERS
@@ -1676,7 +1683,7 @@ contract TuneTraderExchange is Ownable {
 	/**
 	 * @dev TuneTraderExchange Constructor
 	 */
-	constructor (address _DS) public {
+	constructor (address _DS) public Ownable(msg.sender) {
 		DS = IContractStorage(_DS);
 		DS.registerName("positions");
 		DS.registerName("positionExist");

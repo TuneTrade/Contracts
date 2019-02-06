@@ -45,7 +45,7 @@ contract TuneTrader is ITuneTraderManager {
 		uint256 assignedTokens
 	)
 		public
-  {
+    {
 		require(DS.getAddress(DS.key(msg.sender, "userToSongICO")) != address(0), "addICO: no Song assigned to this msg.sender to create ICO");
 
 		SongERC20 songToken = SongERC20(DS.getAddress(DS.key(msg.sender, "userToSongICO")));
@@ -57,7 +57,8 @@ contract TuneTrader is ITuneTraderManager {
 			constraints,
 			_durationDays,
 			_presaleDuration,
-			_bonuses
+			_bonuses,
+			msg.sender
 		);
 
 		songToken.assignICOTokens(address(saleContract), assignedTokens);

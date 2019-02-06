@@ -23,7 +23,7 @@ contract TuneTraderExchange is Ownable {
 	/**
 	 * @dev TuneTraderExchange Constructor
 	 */
-	constructor (address _DS) public {
+	constructor (address _DS) public Ownable(msg.sender) {
 		DS = IContractStorage(_DS);
 		DS.registerName("positions");
 		DS.registerName("positionExist");
