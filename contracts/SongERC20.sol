@@ -1,10 +1,10 @@
 pragma solidity 0.5.0;
 
-import "./ERC20.sol";
-import "./ERC20Detailed.sol";
-import "./ERC20Burnable.sol";
-import "../interfaces/ISongERC20.sol";
-import "../interfaces/ITuneTraderManager.sol";
+import "./token/ERC20.sol";
+import "./token/ERC20Detailed.sol";
+import "./token/ERC20Burnable.sol";
+import "./interfaces/ISongERC20.sol";
+import "./interfaces/ITuneTraderManager.sol";
 
 /**
  * @title SongERC20 token
@@ -93,7 +93,7 @@ contract SongERC20 is ERC20Detailed, ERC20Burnable, ISongERC20 {
 	function transfer(address to, uint256 value) public returns (bool) {
 		super.transfer(to,value);
 
-		if (isContract(to)) {
+		if (_isContract(to)) {
 			ITuneTraderManager(to).tokenFallback(msg.sender, value);
 		}
 
@@ -111,13 +111,13 @@ contract SongERC20 is ERC20Detailed, ERC20Burnable, ISongERC20 {
 	}
 
 	// -----------------------------------------
-	// GETTERS
+	// INTERNAL
 	// -----------------------------------------
 
 	/**
 	 * @dev check if the _addr is a contract or just a basic address
 	 */
-	function isContract(address _addr) internal view returns (bool) {
+	function _isContract(address _addr) private view returns (bool) {
 		uint256 length;
 		assembly {
 			//retrieve the size of the code on target address, this needs assembly
@@ -126,6 +126,10 @@ contract SongERC20 is ERC20Detailed, ERC20Burnable, ISongERC20 {
 
 		return (length > 0);
 	}
+
+	// -----------------------------------------
+	// GETTERS
+	// -----------------------------------------
 
 	/**
 	 * @dev get details of SongERC20 token
@@ -171,5 +175,9 @@ contract SongERC20 is ERC20Detailed, ERC20Burnable, ISongERC20 {
 			decimals(),
 			creationTime
 		);
+	}
+
+	function getOwner() external view returns (address) {
+	    return owner;
 	}
 }

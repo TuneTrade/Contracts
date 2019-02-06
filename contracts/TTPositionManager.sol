@@ -85,13 +85,15 @@ contract TTPositionManager {
 		require(msg.sender == owner, "cancelPosition: only the owner can call this method");
 
 		uint256 balance = token.balanceOf(address(this));
-		if (position == Position.Buy) { //buyig position. we have to send ETHEREUM back to the owner.
+		if (position == Position.Buy) {
+			//buyig position. we have to send ETHEREUM back to the owner.
 			//the question is what to do when by any chance there are tokens from token contract on this position.
 			// We send it to Token Exchange Contract for manual action to be taken.
 			if (balance > 0) {
 				token.transfer(tokenExchange, balance);
 			}
-		} else { //this is sell position. Send back all tokens to the owner.
+		} else {
+			//this is the "Sell" position, sending back all tokens to the owner.
 			token.transfer(owner, balance);
 		}
 
@@ -131,9 +133,11 @@ contract TTPositionManager {
 		uint256 weiBalance = address(this).balance;
 		uint256 tokenBalance = token.balanceOf(address(this));
 
-		if (position == Position.Buy) { // this a position when somebody wants to buy tokens. They have to send ETH to make it happen.
+		if (position == Position.Buy) {
+			// this a position when somebody wants to buy tokens. They have to send ETH to make it happen.
 			active = weiBalance >= cost ? true : false;
-		} else {// this is a position when somebody wants to sell tokens.
+		} else {
+			// this is a position when somebody wants to sell tokens.
 			active = tokenBalance >= volume ? true : false;
 		}
 

@@ -1,7 +1,7 @@
 pragma solidity 0.5.0;
 
-import "./Ownable.sol";
-import "../interfaces/IContractStorage.sol";
+import "./helpers/Ownable.sol";
+import "./interfaces/IContractStorage.sol";
 
 /**
  * @title ContractStorage
