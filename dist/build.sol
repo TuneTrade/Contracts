@@ -496,7 +496,7 @@ contract SongERC20 is ERC20Detailed, ERC20Burnable, ISongERC20 {
 
 		return (length > 0);
 	}
-	
+
 	// -----------------------------------------
 	// GETTERS
 	// -----------------------------------------
@@ -546,7 +546,7 @@ contract SongERC20 is ERC20Detailed, ERC20Burnable, ISongERC20 {
 			creationTime
 		);
 	}
-	
+
 	function getOwner() external view returns (address) {
 	    return owner;
 	}
