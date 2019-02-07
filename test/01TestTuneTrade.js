@@ -2,6 +2,7 @@ var TuneTrader = artifacts.require('TuneTrader')
 var SongERC20 = artifacts.require('SongERC20')
 var SongCrowdsale = artifacts.require('SongCrowdsale')
 var ContractStorage = artifacts.require('ContractStorage')
+
 // var TXTSale = artifacts.require("TXTCrowdsale");
 require('babel-polyfill')
 
@@ -49,6 +50,7 @@ contract('Test TuneTrader Contract General functionality. Song and ICO creation.
     console.log('    ***********************************************************')
     console.log(' ')
   })
+
   it('02. Should be able to add new Song without ICO', async () => {
     return expect(
       TuneTraderContract.AddSong(
@@ -72,7 +74,7 @@ contract('Test TuneTrader Contract General functionality. Song and ICO creation.
   it('03. Adding ICO without adding Song first should fail', async () => {
     var constraints = [0, 0, 0, 0, 0]
     var bonuses = [0, 0, 0, 0, 0, 0, 0, 0]
-    return expect(TuneTraderContract.AddICO(saleWallet, 100, constraints, 100, 1, 1, bonuses, 100)).to.be.eventually
+    return expect(TuneTraderContract.addICO(saleWallet, 100, constraints, 100, 1, 1, bonuses, 100)).to.be.eventually
       .rejected
   })
 
@@ -97,17 +99,17 @@ contract('Test TuneTrader Contract General functionality. Song and ICO creation.
   })
   // function AddSong(string _name, string _author,string _genre, uint8 _entryType,string _website,uint _totalSupply,string _symbol,string _description,string _soundcloud,bool _ico,uint _id)
 
-  // function AddICO(address _wallet,uint256 _teamTokens,uint256[] constraints, uint256 _price, uint256 _durationDays, uint _presaleduration,uint8[] _bonuses,uint256 assignedTokens) public
+  // function addICO(address _wallet,uint256 _teamTokens,uint256[] constraints, uint256 _price, uint256 _durationDays, uint _presaleduration,uint8[] _bonuses,uint256 assignedTokens) public
 
   it('05. Adding ICO with added song for ICO should be fulfiled', async () => {
     var constraints = [0, 0, 0, 0, 0]
     var bonuses = [0, 0, 0, 0, 0, 0, 0, 0]
 
-    await TuneTraderContract.AddICO(saleWallet, teamTokens, constraints, rate, 10, 10, bonuses, assignTokens)
-    let mySongs = await TuneTraderContract.GetMySongs.call()
+    await TuneTraderContract.addICO(saleWallet, teamTokens, constraints, rate, 10, 10, bonuses, assignTokens)
+    let mySongs = await TuneTraderContract.getMySongs.call()
     console.log(mySongs)
     songToken = await SongERC20.at(mySongs[1])
-    let myICO = await TuneTraderContract.GetICO.call(mySongs[1])
+    let myICO = await TuneTraderContract.getICO.call(mySongs[1])
     console.log(myICO)
     saleInstance = await SongCrowdsale.at(myICO)
     // console.log(saleInstance)
@@ -122,7 +124,7 @@ contract('Test TuneTrader Contract General functionality. Song and ICO creation.
   })
 
   it('06. User should have two songs in TuneTrader contract ', async () => {
-    let songs = await TuneTraderContract.GetMySongs.call()
+    let songs = await TuneTraderContract.getMySongs.call()
     await expect(songs.length).to.be.equal(2)
   })
 

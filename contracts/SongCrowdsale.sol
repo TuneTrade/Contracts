@@ -1,8 +1,8 @@
 pragma solidity 0.5.0;
 
-import "./interfaces/IERC20.sol";
-import "./helpers/SafeMath.sol";
-import "./helpers/Ownable.sol";
+import "./IERC20.sol";
+import "./SafeMath.sol";
+import "./Ownable.sol";
 
 /**
  * @title SongCrowdSale

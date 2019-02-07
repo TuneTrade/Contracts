@@ -1,6 +1,6 @@
 pragma solidity 0.5.0;
 
-import "../interfaces/IERC20.sol";
+import "./IERC20.sol";
 
 /**
  * @title ERC20Detailed token

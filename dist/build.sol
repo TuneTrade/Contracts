@@ -1385,7 +1385,7 @@ contract ContractStorage is Ownable, IContractStorage {
     /**
 	 * @dev ContractStorage Constructor
 	 */
-	constructor (IContractStorage _storage) public Ownable(msg.sender) {}
+	constructor () public Ownable(msg.sender) {}
 
 	// -----------------------------------------
 	// SETTERS

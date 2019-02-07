@@ -1,10 +1,10 @@
 pragma solidity 0.5.0;
 
-import "./token/ERC20.sol";
-import "./token/ERC20Detailed.sol";
-import "./token/ERC20Burnable.sol";
-import "./interfaces/ISongERC20.sol";
-import "./interfaces/ITuneTraderManager.sol";
+import "./ERC20.sol";
+import "./ERC20Detailed.sol";
+import "./ERC20Burnable.sol";
+import "./ISongERC20.sol";
+import "./ITuneTraderManager.sol";
 
 /**
  * @title SongERC20 token

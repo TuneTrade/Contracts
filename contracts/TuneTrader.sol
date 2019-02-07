@@ -2,8 +2,8 @@ pragma solidity 0.5.0;
 
 import "./SongCrowdsale.sol";
 import "./SongERC20.sol";
-import "./helpers/SongsLib.sol";
-import "./interfaces/IContractStorage.sol";
+import "./SongsLib.sol";
+import "./IContractStorage.sol";
 
 /**
  * @title TuneTrader

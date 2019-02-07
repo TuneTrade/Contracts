@@ -1,8 +1,8 @@
 pragma solidity 0.5.0;
 
-import "./helpers/Ownable.sol";
-import "./interfaces/IERC20.sol";
-import "./interfaces/ITuneTraderExchange.sol";
+import "./Ownable.sol";
+import "./IERC20.sol";
+import "./ITuneTraderExchange.sol";
 
 /**
  * @title TTPositionManager

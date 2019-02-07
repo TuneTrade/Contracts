@@ -1,7 +1,7 @@
 pragma solidity 0.5.0;
 
-import "./helpers/Ownable.sol";
-import "./interfaces/IContractStorage.sol";
+import "./Ownable.sol";
+import "./IContractStorage.sol";
 
 /**
  * @title ContractStorage
@@ -29,7 +29,7 @@ contract ContractStorage is Ownable, IContractStorage {
 	/**
 	 * @dev ContractStorage Constructor
 	 */
-	constructor (IContractStorage _storage) public Ownable(msg.sender) {}
+	constructor () public Ownable(msg.sender) {}
 
 	// -----------------------------------------
 	// SETTERS

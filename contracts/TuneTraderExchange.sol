@@ -1,8 +1,8 @@
 pragma solidity 0.5.0;
 
-import "./helpers/Ownable.sol";
+import "./Ownable.sol";
 import "./TTPositionManager.sol";
-import "./interfaces/IContractStorage.sol";
+import "./IContractStorage.sol";
 
 /**
  * @title TuneTraderExchange
