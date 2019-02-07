@@ -626,11 +626,42 @@ contract Ownable {
 }
 
 /**
+ * @title Helps contracts guard against reentrancy attacks.
+ * @author Remco Bloemen <remco@2π.com>, Eenae <alexey@mixbytes.io>
+ * @dev If you mark a function `nonReentrant`, you should also
+ * mark it `external`.
+ */
+contract ReentrancyGuard {
+    /// @dev counter to allow mutex lock with only one SSTORE operation
+    uint256 private _guardCounter;
+
+    constructor () internal {
+        // The counter starts at one to prevent changing it from zero to a non-zero
+        // value, which is a more expensive operation.
+        _guardCounter = 1;
+    }
+
+    /**
+     * @dev Prevents a contract from calling itself, directly or indirectly.
+     * Calling a `nonReentrant` function from another `nonReentrant`
+     * function is not supported. It is possible to prevent this from happening
+     * by making the `nonReentrant` function external, and make it call a
+     * `private` function that does the actual work.
+     */
+    modifier nonReentrant() {
+        _guardCounter += 1;
+        uint256 localCounter = _guardCounter;
+        _;
+        require(localCounter == _guardCounter);
+    }
+}
+
+/**
  * @title SongCrowdsale
  * @dev This is Song ICO sale contract based on Open Zeppelin Crowdsale contract.
  * @dev It's purpose is to sell song tokens in main sale and presale.
  */
-contract SongCrowdsale is Ownable {
+contract SongCrowdsale is ReentrancyGuard, Ownable {
 	using SafeMath for uint256;
 
 	uint256 public rate;
@@ -755,7 +786,7 @@ contract SongCrowdsale is Ownable {
 	 * @dev low level token purchase ***DO NOT OVERRIDE***
 	 * @param _beneficiary Address performing the token purchase
 	 */
-	function buyTokens(address _beneficiary) public payable {
+	function buyTokens(address _beneficiary) public nonReentrant payable {
 		_preValidatePurchase(_beneficiary, msg.value);
 
 		if (refundAvailable == true || _campaignState() == State.Refund) {
@@ -1131,6 +1162,30 @@ contract SongCrowdsale is Ownable {
  * @title SongsLib
  */
 library SongsLib {
+    function addICO(
+		uint256 price,
+		address payable wallet,
+		IERC20 songToken,
+		uint256 teamTokens,
+		uint256[] calldata constraints,
+		uint256 durationDays,
+		uint256 presaleDuration,
+		uint8[] calldata bonuses,
+		address sender
+    ) external returns (address) {
+        return address(new SongCrowdsale(
+			price,
+			wallet,
+			songToken,
+			teamTokens,
+			constraints,
+			durationDays,
+			presaleDuration,
+			bonuses,
+			sender
+		));
+    }
+
 	function removeSong(IContractStorage DS, address _song, address contractOwner) public {
 		require(address(DS) != address(0), "removeSong: contractStorage address is zero");
 		require(_song != address(0), "removeSong: song Address can not be zero");
@@ -1209,7 +1264,7 @@ contract TuneTrader {
 	function addICO(
 		address payable _wallet,
 		uint256 _teamTokens,
-		uint256[] memory  constraints,
+		uint256[] memory constraints,
 		uint256 _price,
 		uint256 _durationDays,
 		uint256 _presaleDuration,
@@ -1221,7 +1276,7 @@ contract TuneTrader {
 		require(DS.getAddress(DS.key(msg.sender, "userToSongICO")) != address(0), "addICO: no Song assigned to this msg.sender to create ICO");
 
 		address songToken = DS.getAddress(DS.key(msg.sender, "userToSongICO"));
-		address saleContract = address(new SongCrowdsale(
+		address saleContract = SongsLib.addICO(
 			_price,
 			_wallet,
 			IERC20(songToken),
@@ -1231,7 +1286,7 @@ contract TuneTrader {
 			_presaleDuration,
 			_bonuses,
 			msg.sender
-		));
+		);
 
 		ISongERC20(songToken).assignICOTokens(saleContract, assignedTokens);
 
@@ -1256,20 +1311,20 @@ contract TuneTrader {
 	)
 		public
 	{
-		SongERC20 song = new SongERC20(msg.sender, _totalSupply, _name, _symbol, _decimals, _id);
-		song.setDetails(_author, _genre, _entryType, _website, _soundcloud, _youtube, _description);
+		address song = address(new SongERC20(msg.sender, _totalSupply, _name, _symbol, _decimals, _id));
+		ISongERC20(song).setDetails(_author, _genre, _entryType, _website, _soundcloud, _youtube, _description);
 
-		uint256 index = DS.pushAddress(DS.key('Songs'), address(song));
+		uint256 index = DS.pushAddress(DS.key('Songs'), song);
 
-		DS.setAddress(DS.key(address(song), "songOwner"), msg.sender);
-		DS.setBool(DS.key(address(song), "songExist"), true);
-		DS.setUint(DS.key(address(song), "songIndex"), index);
+		DS.setAddress(DS.key(song, "songOwner"), msg.sender);
+		DS.setBool(DS.key(song, "songExist"), true);
+		DS.setUint(DS.key(song, "songIndex"), index);
 
 		if (_ico) {
-			DS.setAddress(DS.key(msg.sender, 'userToSongICO'), address(song));
+			DS.setAddress(DS.key(msg.sender, 'userToSongICO'), song);
 		}
 
-		DS.pushAddress(DS.key(msg.sender, "usersSongs"), address(song));
+		DS.pushAddress(DS.key(msg.sender, "usersSongs"), song);
 	}
 
 	function removeSong(address _song) external {

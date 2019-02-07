@@ -3,13 +3,14 @@ pragma solidity 0.5.0;
 import "./IERC20.sol";
 import "./SafeMath.sol";
 import "./Ownable.sol";
+import "./ReentrancyGuard.sol";
 
 /**
  * @title SongCrowdsale
  * @dev This is Song ICO sale contract based on Open Zeppelin Crowdsale contract.
  * @dev It's purpose is to sell song tokens in main sale and presale.
  */
-contract SongCrowdsale is Ownable {
+contract SongCrowdsale is ReentrancyGuard, Ownable {
 	using SafeMath for uint256;
 
 	uint256 public rate;
@@ -134,7 +135,7 @@ contract SongCrowdsale is Ownable {
 	 * @dev low level token purchase ***DO NOT OVERRIDE***
 	 * @param _beneficiary Address performing the token purchase
 	 */
-	function buyTokens(address _beneficiary) public payable {
+	function buyTokens(address _beneficiary) public nonReentrant payable {
 		_preValidatePurchase(_beneficiary, msg.value);
 
 		if (refundAvailable == true || _campaignState() == State.Refund) {
