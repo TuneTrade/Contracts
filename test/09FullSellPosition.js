@@ -30,7 +30,7 @@ contract('Test TuneTrader Exchange Contract FullSell Tests ', async accounts => 
     var assignTokens = 2000
     var decimals = 18
     await expect(
-      TuneTraderContract.AddSong(
+      TuneTraderContract.addSong(
         'Song Name',
         'Author',
         'Genre',
@@ -47,24 +47,24 @@ contract('Test TuneTrader Exchange Contract FullSell Tests ', async accounts => 
         { from: accounts[2] }
       )
     ).to.be.eventually.fulfilled
-    let mySongs = await TuneTraderContract.GetMySongs.call({ from: accounts[2] })
+    let mySongs = await TuneTraderContract.getMySongs.call({ from: accounts[2] })
     songToken = await SongERC20.at(mySongs[0])
     console.log(songToken.address)
   })
-  // address token, uint256 volume, bool BuySell, uint256 cost
+
   it('03. Add Song to Exchange.', async () => {
     var buySell = false
     var cost = web3.utils.toWei('10', 'ether')
     var volume = 200
     await expect(
-      TuneTraderExchange.AddPosition(songToken.address, volume, buySell, cost, { from: accounts[2], gasPrice: 1 })
+      TuneTraderExchange.addPosition(songToken.address, volume, buySell, cost, { from: accounts[2], gasPrice: 1 })
     ).to.be.eventually.fulfilled
-    let positions = await TuneTraderExchange.GetPositions.call()
+    let positions = await TuneTraderExchange.getPositions.call()
     expect(positions.length).to.be.equal(1)
   })
 
   it('04. Get List of Positions. Should be 1', async () => {
-    var positions = await TuneTraderExchange.GetPositions()
+    var positions = await TuneTraderExchange.getPositions()
     expect(positions.length).to.be.equal(1)
     TTManagerContract = await TTPositionManager.at(positions[0])
   })
@@ -73,7 +73,7 @@ contract('Test TuneTrader Exchange Contract FullSell Tests ', async accounts => 
     var volume = 200
     await expect(songToken.transfer(TTManagerContract.address, volume, { from: accounts[2] })).to.be.eventually
       .fulfilled
-    let data = await TTManagerContract.GetPositionData()
+    let data = await TTManagerContract.getPositionData()
   })
 
   it('06. Send Ether to receive tokens', async () => {
@@ -86,7 +86,7 @@ contract('Test TuneTrader Exchange Contract FullSell Tests ', async accounts => 
     var balanceBefore = await web3.eth.getBalance(accounts[1])
     var sellerBalanceBefore = await web3.eth.getBalance(accounts[2])
 
-    let tx = await expect(TTManagerContract.BuyTokens({ value: cost, gasPrice: 1, from: accounts[1] })).to.be.eventually
+    let tx = await expect(TTManagerContract.buyTokens({ value: cost, gasPrice: 1, from: accounts[1] })).to.be.eventually
       .fulfilled
 
     let managerTokenBalanceAfter = await songToken.balanceOf(TTManagerContract.address)
@@ -107,8 +107,7 @@ contract('Test TuneTrader Exchange Contract FullSell Tests ', async accounts => 
     sellerBalance = BigNumber(sellerBalance)
     sellerBalanceBefore = BigNumber(sellerBalanceBefore)
     console.log('BalanceBefore:', balanceBefore)
-    // expect (balance).to.be.equal(balanceBefore.sub(cost.toString()).sub(tx.gasUsed))
-    expect(balance.toString(), '7').to.be.equal(
+    expect(BigNumber(balance).toString(), '7').to.be.equal(
       balanceBefore
         .minus(cost)
         .minus(tx.receipt.gasUsed)
@@ -120,8 +119,8 @@ contract('Test TuneTrader Exchange Contract FullSell Tests ', async accounts => 
   })
 
   it('07. It should not be possible to read position data anymore.', async () => {
-    await expect(TTManagerContract.GetPositionData(), '1').to.be.eventually.rejected
-    let positions = await TuneTraderExchange.GetPositions.call()
+    await expect(TTManagerContract.getPositionData(), '1').to.be.eventually.rejected
+    let positions = await TuneTraderExchange.getPositions.call()
     expect(positions.length, 'There should be zero positions in Token Exchange contract').to.be.equal(0)
   })
 })

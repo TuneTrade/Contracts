@@ -29,7 +29,7 @@ contract('Test TuneTrader Exchange Contract Basic Tests ', async accounts => {
     var assignTokens = 2000
     var decimals = 18
     await expect(
-      TuneTraderContract.AddSong(
+      TuneTraderContract.addSong(
         'Song Name',
         'Author',
         'Genre',
@@ -45,18 +45,18 @@ contract('Test TuneTrader Exchange Contract Basic Tests ', async accounts => {
         1
       )
     ).to.be.eventually.fulfilled
-    let mySongs = await TuneTraderContract.GetMySongs.call()
+    let mySongs = await TuneTraderContract.getMySongs.call()
     songToken = await SongERC20.at(mySongs[0])
   })
-  // address token, uint256 volume, bool BuySell, uint256 cost
+
   it('03. Add Song to Exchange.', async () => {
     await expect(
-      TuneTraderExchange.AddPosition(songToken.address, 100, true, 200, {
+      TuneTraderExchange.addPosition(songToken.address, 100, true, 200, {
         from: accounts[1],
         value: 200
       })
     ).to.be.eventually.fulfilled
-    let count = await TuneTraderExchange.PositionsCount.call()
+    let count = await TuneTraderExchange.getPositionsCount.call()
     await expect(count.toNumber()).to.be.equal(1)
   })
   // 0 address _token,
@@ -68,9 +68,9 @@ contract('Test TuneTrader Exchange Contract Basic Tests ', async accounts => {
   // 6 address _managerAddress
 
   it('04. Verify Position #1 Data', async () => {
-    let myPositions = await TuneTraderExchange.GetPositions.call()
+    let myPositions = await TuneTraderExchange.getPositions.call()
     let positionContract = await PositionManager.at(myPositions[0])
-    let position = await positionContract.GetPositionData()
+    let position = await positionContract.getPositionData()
     expect(position[0]).to.be.equal(songToken.address)
     expect(position[1].toNumber()).to.be.equal(100)
     expect(position[2]).to.be.true
@@ -78,8 +78,9 @@ contract('Test TuneTrader Exchange Contract Basic Tests ', async accounts => {
     expect(position[5]).to.be.equal(accounts[1])
     console.log('Manager address: ', position[6])
   })
+
   it('05. There should be only one position', async () => {
-    let myPositions = await TuneTraderExchange.GetPositions.call()
+    let myPositions = await TuneTraderExchange.getPositions.call()
     await expect(myPositions.length).to.be.equal(1)
   })
 })

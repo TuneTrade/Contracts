@@ -61,7 +61,7 @@ contract('Test TuneTrader Contract for maxCap constrain and minpresale constrain
 
   it('02. Should be able to add new Song with ICO', function () {
     return expect(
-      TuneTraderContract.AddSong(
+      TuneTraderContract.addSong(
         'Song Name',
         'Author',
         'Genre',
@@ -79,23 +79,20 @@ contract('Test TuneTrader Contract for maxCap constrain and minpresale constrain
       )
     ).to.be.eventually.fulfilled
   })
-  // function AddSong(string _name, string _author,string _genre, uint8 _entryType,string _website,uint _totalSupply,string _symbol,string _description,string _soundcloud,bool _ico,uint _id)
-
-  // function AddICO(address _wallet,uint256 _teamTokens,uint256[] constraints, uint256 _price, uint256 _durationDays, uint _presaleduration,uint8[] _bonuses,uint256 assignedTokens) public
 
   it('03. Adding ICO with added song for ICO should be fulfiled', async () => {
-    await TuneTraderContract.AddICO(saleWallet, teamTokens, constraints, rate, 10, 10, bonuses, assignTokens, {
+    await TuneTraderContract.addICO(saleWallet, teamTokens, constraints, rate, 10, 10, bonuses, assignTokens, {
       gasPrice: 1
     })
-    let mySongs = await TuneTraderContract.GetMySongs.call()
+    let mySongs = await TuneTraderContract.getMySongs.call()
     songToken = await SongERC20.at(mySongs[0])
-    let myICO = await TuneTraderContract.GetICO.call(mySongs[0])
+    let myICO = await TuneTraderContract.getICO.call(mySongs[0])
     saleInstance = await SongCrowdsale.at(myICO)
     expect(myICO).to.be.not.equal(0)
   })
 
   it('04. Should be possible to buy tokens first second of presale.10% bonus applies.', async () => {
-    await saleInstance.SetTestNow(0)
+    await saleInstance.setTestNow(0)
     await saleInstance.sendTransaction({
       gas: 914366353,
       gasPrice: 1,
@@ -118,8 +115,8 @@ contract('Test TuneTrader Contract for maxCap constrain and minpresale constrain
   })
 
   it("06. Sale should be in Refund state after presale ends and minimum presale condition wasn't met", async () => {
-    await saleInstance.SetTestNow(10 * 24 * 3600 + 1)
-    let state = await saleInstance.CampaignState.call({ gasPrice: 1 })
+    await saleInstance.setTestNow(10 * 24 * 3600 + 1)
+    let state = await saleInstance.getCampaignState.call({ gasPrice: 1 })
     expect(state).to.be.equal('Refund')
   })
 
@@ -131,9 +128,10 @@ contract('Test TuneTrader Contract for maxCap constrain and minpresale constrain
       value: 5000,
       from: accounts[5]
     })
+
     let curBalance = await web3.eth.getBalance(accounts[5])
     initBalance = BigNumber(initBalance)
-    await expect(curBalance.toString()).to.be.equal(initBalance.minus(tx.receipt.gasUsed).toString())
+    await expect(BigNumber(curBalance).toString()).to.be.equal((initBalance.minus(tx.receipt.gasUsed)).toString())
   })
 
   it('08.It should be not possible to buy tokens in refund state.Second transaction should be rejected.', async () => {
@@ -156,6 +154,7 @@ contract('Test TuneTrader Contract for maxCap constrain and minpresale constrain
     let initBalance = await web3.eth.getBalance(accounts[5])
     let tx = await saleInstance.refund({ from: accounts[5], gasPrice: 1 })
     let curBalance = await web3.eth.getBalance(accounts[5])
+    curBalance = BigNumber(curBalance)
     initBalance = BigNumber(initBalance)
     await expect(curBalance.toString()).to.be.equal(
       initBalance

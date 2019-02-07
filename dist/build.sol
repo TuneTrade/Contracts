@@ -626,40 +626,26 @@ contract Ownable {
 }
 
 /**
- * @title SongCrowdSale
+ * @title SongCrowdsale
  * @dev This is Song ICO sale contract based on Open Zeppelin Crowdsale contract.
  * @dev It's purpose is to sell song tokens in main sale and presale.
  */
-contract SongCrowdSale is Ownable {
+contract SongCrowdsale is Ownable {
 	using SafeMath for uint256;
 
 	uint256 public rate;
 	uint256 public weiRaised;
-
-	// number of tokens reserved for a team. It is not possible to sell them.
 	uint256 public teamTokens;
 
-    // minimum amount of tokens sold in presale. If not sold then it is not possible to go to main sale
 	uint256 public minPreSaleETH;
-
-	// minimum number of tokens which have to be sold in MainSale so it is successfull. If not then contributors are allowed to have a refund.
 	uint256 public minMainSaleETH;
 
-    // maximum Ether contribution. Sale contract can't sell tokens for more than this number.
 	uint256 public maxEth;
-
-	// maximum number of tokens which can be sold.
 	uint256 public maxCap;
-
-	// minimum number of tokens which have to be sold or sale will be cancelled.
 	uint256 public minCap;
 
-    // main sale campaign duration in days
 	uint256 public durationDays;
-
-	// presale capaign duration in days
 	uint256 public preSaleDays;
-
 	uint256 public preSaleEnd;
 	uint256 public saleEnd;
 
@@ -674,10 +660,7 @@ contract SongCrowdSale is Ownable {
 	uint256 public bonusThirdValue;
 
 	uint256 public saleStart;
-
-	// 0 - presale, 1 - first period, 2-second period, 3 - third period
 	uint256 public volume;
-
 	uint256 public phase = 1;
 
 	// The token being sold
@@ -725,9 +708,9 @@ contract SongCrowdSale is Ownable {
 		uint8[] memory bonuses,
 		address _owner
 	) public Ownable(_owner) {
-		require(_rate > 0, "SongCrowdSale: the rate should be bigger then zero");
-		require(_wallet != address(0), "SongCrowdSale: invalid wallet address");
-		require(address(_song) != address(0), "SongCrowdSale: invalid SongERC20 token address");
+		require(_rate > 0, "SongCrowdsale: the rate should be bigger then zero");
+		require(_wallet != address(0), "SongCrowdsale: invalid wallet address");
+		require(address(_song) != address(0), "SongCrowdsale: invalid SongERC20 token address");
 
 		rate = _rate;
 		wallet = _wallet;
@@ -746,8 +729,8 @@ contract SongCrowdSale is Ownable {
 
 		if (bonuses.length == 8) {
 			// The bonus periods for presale and main sale must be smaller or equal than presale and mainsail themselves
-			require(bonuses[0] <= preSaleDays, "SongCrowdSale: the presale bonus period must be smaller than presale period");
-			require((bonuses[2] + bonuses [4] + bonuses[6]) <= durationDays, "SongCrowdSale: the main sale bonus period must be smaller then main sale period");
+			require(bonuses[0] <= preSaleDays, "SongCrowdsale: the presale bonus period must be smaller than presale period");
+			require((bonuses[2] + bonuses [4] + bonuses[6]) <= durationDays, "SongCrowdsale: the main sale bonus period must be smaller then main sale period");
 
 			_defineBonusValues(bonuses[1], bonuses[3], bonuses[5], bonuses[7]);
 			_defineBonusPeriods(bonuses[0], bonuses[2], bonuses[4], bonuses[6]);
@@ -818,7 +801,6 @@ contract SongCrowdSale is Ownable {
 
 		msg.sender.transfer(toRefund);
 	}
-
 
 	/**
 	 * @dev only the owner can change the wallet address
@@ -1010,8 +992,7 @@ contract SongCrowdSale is Ownable {
 	}
 
 	/**
-	 * @dev It will fail if for any reason now is smaller than saleStart
-	 * @return Return bonus value for current moment in %. If sale is already out of bonus period it will return 0.
+	 * @return the bonus amount based on the current timestamp
 	 */
 	function _currentBonusValue() private view returns (uint256) {
 		if (_campaignState() == State.PreSale) {
@@ -1071,10 +1052,6 @@ contract SongCrowdSale is Ownable {
 	}
 
 	/**
-	 * @dev the rate is defined as TOKENS ( full tokens not mini tokens ) per ETH. To calculate minitokens per wei we have to
-	 * multiply it by 10 to power of decimals and divide by 10 to power of 18 ( because there is 10^18 weis in ETH)
-	 * and then we can multiply it by amount of wei to get number of tokens.
-	 * token_amount = ((price * 10**decimals) * weiAmount) / 10**18
 	 * @return calculated value for this _weiAmount, _decimals and _rate
 	 */
 	function getTokensForWei(uint256 _weiAmount, uint256 _decimals, uint256 _rate) external pure returns (
@@ -1203,7 +1180,7 @@ interface ITuneTraderManager {
 /**
  * @title TuneTrader
  */
-contract TuneTrader is ITuneTraderManager {
+contract TuneTrader {
 	IContractStorage public DS;
 	address payable public owner;
 
@@ -1240,25 +1217,25 @@ contract TuneTrader is ITuneTraderManager {
 		uint256 assignedTokens
 	)
 		public
-  {
+  	{
 		require(DS.getAddress(DS.key(msg.sender, "userToSongICO")) != address(0), "addICO: no Song assigned to this msg.sender to create ICO");
 
-		SongERC20 songToken = SongERC20(DS.getAddress(DS.key(msg.sender, "userToSongICO")));
-		SongCrowdSale saleContract = new SongCrowdSale(
+		address songToken = DS.getAddress(DS.key(msg.sender, "userToSongICO"));
+		address saleContract = address(new SongCrowdsale(
 			_price,
 			_wallet,
-			songToken,
+			IERC20(songToken),
 			_teamTokens,
 			constraints,
 			_durationDays,
 			_presaleDuration,
 			_bonuses,
 			msg.sender
-		);
+		));
 
-		songToken.assignICOTokens(address(saleContract), assignedTokens);
+		ISongERC20(songToken).assignICOTokens(saleContract, assignedTokens);
 
-		DS.setAddress(DS.key(address(songToken), "songToSale"), address(saleContract));
+		DS.setAddress(DS.key(songToken, "songToSale"), saleContract);
 		DS.setAddress(DS.key(msg.sender, "userToSongICO"), address(0));
 	}
 

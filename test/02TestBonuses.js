@@ -54,7 +54,7 @@ contract('Test TuneTrader Contract Bonuses', async accounts => {
 
   it('02. Should be able to add new Song with ICO', function () {
     return expect(
-      TuneTraderContract.AddSong(
+      TuneTraderContract.addSong(
         'Song Name',
         'Author',
         'Genre',
@@ -78,18 +78,18 @@ contract('Test TuneTrader Contract Bonuses', async accounts => {
 
   it('03. Adding ICO with added song for ICO should be fulfiled', async () => {
     var constraints = [0, 0, 0, 0, 0]
-    await TuneTraderContract.AddICO(saleWallet, teamTokens, constraints, rate, 10, 10, bonuses, assignTokens, {
+    await TuneTraderContract.addICO(saleWallet, teamTokens, constraints, rate, 10, 10, bonuses, assignTokens, {
       gasPrice: 1
     })
-    let mySongs = await TuneTraderContract.GetMySongs.call()
+    let mySongs = await TuneTraderContract.getMySongs.call()
     songToken = await SongERC20.at(mySongs[0])
-    let myICO = await TuneTraderContract.GetICO.call(mySongs[0])
+    let myICO = await TuneTraderContract.getICO.call(mySongs[0])
     saleInstance = await SongCrowdsale.at(myICO)
     expect(myICO).to.be.not.equal(0)
   })
 
   it('04. Should be possible to buy tokens from sale contract at the last second of Sale. No bonus.', async () => {
-    await saleInstance.SetTestNow(20 * 24 * 3600)
+    await saleInstance.setTestNow(20 * 24 * 3600)
     await saleInstance.sendTransaction({
       gas: 914366353,
       gasPrice: 1,
@@ -103,7 +103,7 @@ contract('Test TuneTrader Contract Bonuses', async accounts => {
   it('05. Should be possible to get presale Bonus at the first second of presale.', async () => {
     // var bonuses = [1,10,2,20,3,30,4,40]
 
-    await saleInstance.SetTestNow(0)
+    await saleInstance.setTestNow(0)
     await saleInstance.sendTransaction({
       gas: 914366353,
       gasPrice: 1,
@@ -117,7 +117,7 @@ contract('Test TuneTrader Contract Bonuses', async accounts => {
 
   it('06. Should be possible to get presale Bonus at the last second of presale bonus.', async () => {
     // var bonuses = [1,10,2,20,3,30,4,40]
-    await saleInstance.SetTestNow(1 * 24 * 3600)
+    await saleInstance.setTestNow(1 * 24 * 3600)
     await saleInstance.sendTransaction({
       gas: 914366353,
       gasPrice: 1,
@@ -131,7 +131,7 @@ contract('Test TuneTrader Contract Bonuses', async accounts => {
 
   it('07. Should not be possible to get presale Bonus at the last second of presale period (not presale bonus).', async () => {
     // var bonuses = [1,10,2,20,3,30,4,40]
-    await saleInstance.SetTestNow(10 * 24 * 3600)
+    await saleInstance.setTestNow(10 * 24 * 3600)
     await saleInstance.sendTransaction({
       gas: 914366353,
       gasPrice: 1,
@@ -145,7 +145,7 @@ contract('Test TuneTrader Contract Bonuses', async accounts => {
 
   it('08. Should be possible to get first period bonus at the last second of it', async () => {
     // var bonuses = [1,10,2,20,3,30,4,40]
-    await saleInstance.SetTestNow((10 + 2) * 24 * 3600)
+    await saleInstance.setTestNow((10 + 2) * 24 * 3600)
     await saleInstance.sendTransaction({
       gas: 914366353,
       gasPrice: 1,
@@ -159,7 +159,7 @@ contract('Test TuneTrader Contract Bonuses', async accounts => {
 
   it('09. Should be possible to get second period bonus at the last second of it', async () => {
     // var bonuses = [1,10,2,20,3,30,4,40]
-    await saleInstance.SetTestNow((10 + 2 + 3) * 24 * 3600)
+    await saleInstance.setTestNow((10 + 2 + 3) * 24 * 3600)
     await saleInstance.sendTransaction({
       gas: 914366353,
       gasPrice: 1,
@@ -173,7 +173,7 @@ contract('Test TuneTrader Contract Bonuses', async accounts => {
 
   it('10. Should be possible to get third period bonus at the last second of it', async () => {
     // var bonuses = [1,10,2,20,3,30,4,40]
-    await saleInstance.SetTestNow((10 + 2 + 3 + 4) * 24 * 3600)
+    await saleInstance.setTestNow((10 + 2 + 3 + 4) * 24 * 3600)
     await saleInstance.sendTransaction({
       gas: 914366353,
       gasPrice: 1,
@@ -187,7 +187,7 @@ contract('Test TuneTrader Contract Bonuses', async accounts => {
 
   it('11. Should be possible to buy tokens at the last moment of Main Sale. No bonus apply.', async () => {
     // var bonuses = [1,10,2,20,3,30,4,40]
-    await saleInstance.SetTestNow(20 * 24 * 3600)
+    await saleInstance.setTestNow(20 * 24 * 3600)
     await saleInstance.sendTransaction({
       gas: 914366353,
       gasPrice: 1,
@@ -201,7 +201,7 @@ contract('Test TuneTrader Contract Bonuses', async accounts => {
 
   it('12. Should NOT be possible to buy tokens after sales ends. One second later', async () => {
     // var bonuses = [1,10,2,20,3,30,4,40]
-    await saleInstance.SetTestNow(20 * 24 * 3600 + 1)
+    await saleInstance.setTestNow(20 * 24 * 3600 + 1)
     expect(
       saleInstance.sendTransaction({
         gas: 914366353,
@@ -213,12 +213,12 @@ contract('Test TuneTrader Contract Bonuses', async accounts => {
   })
 
   it('13. Volume should show amount of sold tokens and be equal to buyer ballance', async () => {
-    let res = await saleInstance.GetStats.call()
+    let res = await saleInstance.getStats.call()
     expect(parseInt(res[1])).to.be.equal(myBalance)
   })
 
   it('14. Contribution should show 8 wei. This is total amount for which tokens were bought.', async () => {
-    let res = await saleInstance.GetStats.call()
+    let res = await saleInstance.getStats.call()
     expect(parseInt(res[0])).to.be.equal(8)
   })
 })

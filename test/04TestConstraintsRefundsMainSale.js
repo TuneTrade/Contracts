@@ -62,7 +62,7 @@ contract('Test TuneTrader Contract for Main Sale min ETH sale and refund. ', asy
 
   it('02. Should be able to add new Song with ICO', function () {
     return expect(
-      TuneTraderContract.AddSong(
+      TuneTraderContract.addSong(
         'Song Name',
         'Author',
         'Genre',
@@ -80,23 +80,20 @@ contract('Test TuneTrader Contract for Main Sale min ETH sale and refund. ', asy
       )
     ).to.be.eventually.fulfilled
   })
-  // function AddSong(string _name, string _author,string _genre, uint8 _entryType,string _website,uint _totalSupply,string _symbol,string _description,string _soundcloud,bool _ico,uint _id)
-
-  // function AddICO(address _wallet,uint256 _teamTokens,uint256[] constraints, uint256 _price, uint256 _durationDays, uint _presaleduration,uint8[] _bonuses,uint256 assignedTokens) public
 
   it('03. Adding ICO with added song for ICO should be fulfiled', async () => {
-    await TuneTraderContract.AddICO(saleWallet, teamTokens, constraints, rate, 10, 10, bonuses, assignTokens, {
+    await TuneTraderContract.addICO(saleWallet, teamTokens, constraints, rate, 10, 10, bonuses, assignTokens, {
       gasPrice: 1
     })
-    let mySongs = await TuneTraderContract.GetMySongs.call()
+    let mySongs = await TuneTraderContract.getMySongs.call()
     songToken = await SongERC20.at(mySongs[0])
-    let myICO = await TuneTraderContract.GetICO.call(mySongs[0])
+    let myICO = await TuneTraderContract.getICO.call(mySongs[0])
     saleInstance = await SongCrowdsale.at(myICO)
     expect(myICO).to.be.not.equal(0)
   })
 
   it('04. Should be possible to buy tokens for second bonus period with 30% bonus for the last second of this period', async () => {
-    await saleInstance.SetTestNow(15 * 24 * 3600)
+    await saleInstance.setTestNow(15 * 24 * 3600)
     await saleInstance.sendTransaction({
       gas: 914366353,
       gasPrice: 1,
@@ -108,7 +105,7 @@ contract('Test TuneTrader Contract for Main Sale min ETH sale and refund. ', asy
   })
 
   it('05. Should be possible to buy tokens for third bonus period with 40% bonus for the first second of this period', async () => {
-    await saleInstance.SetTestNow(15 * 24 * 3600 + 1)
+    await saleInstance.setTestNow(15 * 24 * 3600 + 1)
     await saleInstance.sendTransaction({
       gas: 914366353,
       gasPrice: 1,
@@ -121,18 +118,18 @@ contract('Test TuneTrader Contract for Main Sale min ETH sale and refund. ', asy
   })
 
   it('06. Contract should NOT be in refund state before finish Main Sale. Only 11 wei was collected for min of 20.', async () => {
-    let state = await saleInstance.CampaignState.call()
+    let state = await saleInstance.getCampaignState.call()
     return expect(state).to.be.not.equal('Refund')
   })
 
   it('07. Contract should  be in refund state after finish Main Sale. Only 11 wei was collected for min of 20.', async () => {
-    await saleInstance.SetTestNow(20 * 24 * 3600 + 1)
-    let state = await saleInstance.CampaignState.call()
+    await saleInstance.setTestNow(20 * 24 * 3600 + 1)
+    let state = await saleInstance.getCampaignState.call()
     return expect(state).to.be.equal('Refund')
   })
 
   it('08. Should be possible to buy mor tokens to fulfill minimum Cap. ', async () => {
-    await saleInstance.SetTestNow(15 * 24 * 3600 + 1)
+    await saleInstance.setTestNow(15 * 24 * 3600 + 1)
     await saleInstance.sendTransaction({
       gas: 914366353,
       gasPrice: 1,
@@ -145,14 +142,15 @@ contract('Test TuneTrader Contract for Main Sale min ETH sale and refund. ', asy
   })
 
   it('09. Contract should  be in Ended state after finish Main Sale. 21 wei was collected..', async () => {
-    await saleInstance.SetTestNow(20 * 24 * 3600 + 1)
-    let state = await saleInstance.CampaignState.call()
+    await saleInstance.setTestNow(20 * 24 * 3600 + 1)
+    let state = await saleInstance.getCampaignState.call()
     return expect(state).to.be.equal('Ended')
   })
 
   it('10. Owner should be able to receive all raised ETH (21 Wei)', async () => {
-    await saleInstance.SetTestNow(20 * 24 * 3600 + 1)
+    await saleInstance.setTestNow(20 * 24 * 3600 + 1)
     let initBalance = await web3.eth.getBalance(saleWallet)
+    initBalance = BigNumber(initBalance)
     let tx = await saleInstance.withdrawFunds({
       from: saleWallet,
       gasPrice: 1
@@ -168,8 +166,8 @@ contract('Test TuneTrader Contract for Main Sale min ETH sale and refund. ', asy
   })
 
   it('11.Contract should be in Closed state after funds were withdrawn by Sale wallet account.', async () => {
-    await saleInstance.SetTestNow(20 * 24 * 3600 + 1)
-    let state = await saleInstance.CampaignState.call()
+    await saleInstance.setTestNow(20 * 24 * 3600 + 1)
+    let state = await saleInstance.getCampaignState.call()
     return expect(state).to.be.equal('Closed')
   })
 })

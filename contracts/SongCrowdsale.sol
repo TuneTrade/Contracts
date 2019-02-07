@@ -5,11 +5,11 @@ import "./SafeMath.sol";
 import "./Ownable.sol";
 
 /**
- * @title SongCrowdSale
+ * @title SongCrowdsale
  * @dev This is Song ICO sale contract based on Open Zeppelin Crowdsale contract.
  * @dev It's purpose is to sell song tokens in main sale and presale.
  */
-contract SongCrowdSale is Ownable {
+contract SongCrowdsale is Ownable {
 	using SafeMath for uint256;
 
 	uint256 public rate;
@@ -87,9 +87,9 @@ contract SongCrowdSale is Ownable {
 		uint8[] memory bonuses,
 		address _owner
 	) public Ownable(_owner) {
-		require(_rate > 0, "SongCrowdSale: the rate should be bigger then zero");
-		require(_wallet != address(0), "SongCrowdSale: invalid wallet address");
-		require(address(_song) != address(0), "SongCrowdSale: invalid SongERC20 token address");
+		require(_rate > 0, "SongCrowdsale: the rate should be bigger then zero");
+		require(_wallet != address(0), "SongCrowdsale: invalid wallet address");
+		require(address(_song) != address(0), "SongCrowdsale: invalid SongERC20 token address");
 
 		rate = _rate;
 		wallet = _wallet;
@@ -108,8 +108,8 @@ contract SongCrowdSale is Ownable {
 
 		if (bonuses.length == 8) {
 			// The bonus periods for presale and main sale must be smaller or equal than presale and mainsail themselves
-			require(bonuses[0] <= preSaleDays, "SongCrowdSale: the presale bonus period must be smaller than presale period");
-			require((bonuses[2] + bonuses [4] + bonuses[6]) <= durationDays, "SongCrowdSale: the main sale bonus period must be smaller then main sale period");
+			require(bonuses[0] <= preSaleDays, "SongCrowdsale: the presale bonus period must be smaller than presale period");
+			require((bonuses[2] + bonuses [4] + bonuses[6]) <= durationDays, "SongCrowdsale: the main sale bonus period must be smaller then main sale period");
 
 			_defineBonusValues(bonuses[1], bonuses[3], bonuses[5], bonuses[7]);
 			_defineBonusPeriods(bonuses[0], bonuses[2], bonuses[4], bonuses[6]);

@@ -30,7 +30,7 @@ contract('Test TuneTrader Exchange Contract Full Buy Tests ', async accounts => 
     var assignTokens = 2000
     var decimals = 18
     await expect(
-      TuneTraderContract.AddSong(
+      TuneTraderContract.addSong(
         'Song Name',
         'Author',
         'Genre',
@@ -47,34 +47,34 @@ contract('Test TuneTrader Exchange Contract Full Buy Tests ', async accounts => 
         { from: accounts[2] }
       )
     ).to.be.eventually.fulfilled
-    let mySongs = await TuneTraderContract.GetMySongs.call({ from: accounts[2] })
+    let mySongs = await TuneTraderContract.getMySongs.call({ from: accounts[2] })
     songToken = await SongERC20.at(mySongs[0])
   })
-  // address token, uint256 volume, bool BuySell, uint256 cost
+
   it('03. Add Song to Exchange.', async () => {
     var buySell = true
     var cost = web3.utils.toWei('10', 'ether')
     cost = cost.toString()
     var volume = '200'
     await expect(
-      TuneTraderExchange.AddPosition(songToken.address, volume, buySell, cost, {
+      TuneTraderExchange.addPosition(songToken.address, volume, buySell, cost, {
         from: accounts[1],
         value: cost,
         gasPrice: 1
       })
     ).to.be.eventually.fulfilled
-    let positions = await TuneTraderExchange.GetPositions.call()
+    let positions = await TuneTraderExchange.getPositions.call()
     expect(positions.length).to.be.equal(1)
   })
 
   it('04. Get List of Positions. Should be 1', async () => {
-    var positions = await TuneTraderExchange.GetPositions()
+    var positions = await TuneTraderExchange.getPositions()
     expect(positions.length).to.be.equal(1)
     TTManagerContract = await TTPositionManager.at(positions[0])
   })
 
   it('05. Get Position Data. Should be marked as active', async () => {
-    let data = await TTManagerContract.GetPositionData()
+    let data = await TTManagerContract.getPositionData()
     expect(data[7], 'Position should be marked as active because ETH was transfered').to.be.true
     expect(data[2], 'It should be Buy position').to.be.true
   })
@@ -87,9 +87,6 @@ contract('Test TuneTrader Exchange Contract Full Buy Tests ', async accounts => 
 
     await expect(songToken.transfer(TTManagerContract.address, volume, { from: accounts[2] })).to.be.fulfilled
 
-    // let data = await TTManagerContract.GetPositionData()
-
-    // let managerTokenBalanceAfter = await songToken.balanceOf(TTManagerContract.address)
     let buyerTokenBalanceAfter = await songToken.balanceOf(accounts[1])
     let sellerTokenBalanceAfter = await songToken.balanceOf(accounts[2])
 
@@ -102,8 +99,8 @@ contract('Test TuneTrader Exchange Contract Full Buy Tests ', async accounts => 
   })
 
   it('07. It should not be possible to read position data anymore.', async () => {
-    await expect(TTManagerContract.GetPositionData()).to.be.eventually.rejected
-    let positions = await TuneTraderExchange.GetPositions.call()
+    await expect(TTManagerContract.getPositionData()).to.be.eventually.rejected
+    let positions = await TuneTraderExchange.getPositions.call()
     expect(positions.length, 'There should be zero positions in Token Exchange contract').to.be.equal(0)
   })
 })

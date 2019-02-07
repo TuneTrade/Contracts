@@ -1,7 +1,7 @@
-var TuneTraderExchange = artifacts.require('./TuneTraderExchange.sol')
-var TuneTrader = artifacts.require('./TuneTrader.sol')
-var ContractStorage = artifacts.require('./ContractStorage.sol')
-var SongsLib = artifacts.require('./SongsLib.sol')
+const TuneTrader = artifacts.require('./TuneTrader.sol')
+const TuneTraderExchange = artifacts.require('./TuneTraderExchange.sol')
+const ContractStorage = artifacts.require('./ContractStorage.sol')
+const SongsLib = artifacts.require('./SongsLib.sol')
 
 module.exports = function (deployer) {
   deployer.then(async () => {
@@ -14,8 +14,6 @@ module.exports = function (deployer) {
     let storageInstance = await ContractStorage.deployed()
 
     // DEPLOY MAIN TUNETRADER
-    console.log(storageInstance.address)
-
     await deployer.deploy(TuneTrader, storageInstance.address)
     let tunetraderInstance = await TuneTrader.deployed()
     await storageInstance.authorizeAddress(tunetraderInstance.address)

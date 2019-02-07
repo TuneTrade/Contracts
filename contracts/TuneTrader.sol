@@ -8,7 +8,7 @@ import "./IContractStorage.sol";
 /**
  * @title TuneTrader
  */
-contract TuneTrader is ITuneTraderManager {
+contract TuneTrader {
 	IContractStorage public DS;
 	address payable public owner;
 
@@ -37,7 +37,7 @@ contract TuneTrader is ITuneTraderManager {
 	function addICO(
 		address payable _wallet,
 		uint256 _teamTokens,
-		uint256[] memory  constraints,
+		uint256[] memory constraints,
 		uint256 _price,
 		uint256 _durationDays,
 		uint256 _presaleDuration,
@@ -45,14 +45,14 @@ contract TuneTrader is ITuneTraderManager {
 		uint256 assignedTokens
 	)
 		public
-    {
+  	{
 		require(DS.getAddress(DS.key(msg.sender, "userToSongICO")) != address(0), "addICO: no Song assigned to this msg.sender to create ICO");
 
-		SongERC20 songToken = SongERC20(DS.getAddress(DS.key(msg.sender, "userToSongICO")));
-		SongCrowdSale saleContract = new SongCrowdSale(
+		address songToken = DS.getAddress(DS.key(msg.sender, "userToSongICO"));
+		address saleContract = SongsLib.addICO(
 			_price,
 			_wallet,
-			songToken,
+			IERC20(songToken),
 			_teamTokens,
 			constraints,
 			_durationDays,
@@ -61,9 +61,9 @@ contract TuneTrader is ITuneTraderManager {
 			msg.sender
 		);
 
-		songToken.assignICOTokens(address(saleContract), assignedTokens);
+		ISongERC20(songToken).assignICOTokens(saleContract, assignedTokens);
 
-		DS.setAddress(DS.key(address(songToken), "songToSale"), address(saleContract));
+		DS.setAddress(DS.key(songToken, "songToSale"), saleContract);
 		DS.setAddress(DS.key(msg.sender, "userToSongICO"), address(0));
 	}
 
@@ -84,20 +84,20 @@ contract TuneTrader is ITuneTraderManager {
 	)
 		public
 	{
-		SongERC20 song = new SongERC20(msg.sender, _totalSupply, _name, _symbol, _decimals, _id);
-		song.setDetails(_author, _genre, _entryType, _website, _soundcloud, _youtube, _description);
+		address song = address(new SongERC20(msg.sender, _totalSupply, _name, _symbol, _decimals, _id));
+		ISongERC20(song).setDetails(_author, _genre, _entryType, _website, _soundcloud, _youtube, _description);
 
-		uint256 index = DS.pushAddress(DS.key('Songs'), address(song));
+		uint256 index = DS.pushAddress(DS.key('Songs'), song);
 
-		DS.setAddress(DS.key(address(song), "songOwner"), msg.sender);
-		DS.setBool(DS.key(address(song), "songExist"), true);
-		DS.setUint(DS.key(address(song), "songIndex"), index);
+		DS.setAddress(DS.key(song, "songOwner"), msg.sender);
+		DS.setBool(DS.key(song, "songExist"), true);
+		DS.setUint(DS.key(song, "songIndex"), index);
 
 		if (_ico) {
-			DS.setAddress(DS.key(msg.sender, 'userToSongICO'), address(song));
+			DS.setAddress(DS.key(msg.sender, 'userToSongICO'), song);
 		}
 
-		DS.pushAddress(DS.key(msg.sender, "usersSongs"), address(song));
+		DS.pushAddress(DS.key(msg.sender, "usersSongs"), song);
 	}
 
 	function removeSong(address _song) external {
@@ -118,7 +118,7 @@ contract TuneTrader is ITuneTraderManager {
 	}
 
 	function getSongsLength(address song) external view returns (uint, uint, address) {
-		return SongsLib.songsLength(DS, song);
+		return SongsLib.getSongsLength(DS, song);
 	}
 
 	function getICO(address song) external view returns (address) {

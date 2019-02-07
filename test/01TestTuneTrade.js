@@ -53,7 +53,7 @@ contract('Test TuneTrader Contract General functionality. Song and ICO creation.
 
   it('02. Should be able to add new Song without ICO', async () => {
     return expect(
-      TuneTraderContract.AddSong(
+      TuneTraderContract.addSong(
         'TEST',
         'TEST',
         'TEST',
@@ -80,7 +80,7 @@ contract('Test TuneTrader Contract General functionality. Song and ICO creation.
 
   it('04. Should be able to add new Song with ICO', function () {
     return expect(
-      TuneTraderContract.AddSong(
+      TuneTraderContract.addSong(
         'Song Name',
         'Author',
         'Genre',
@@ -97,9 +97,6 @@ contract('Test TuneTrader Contract General functionality. Song and ICO creation.
       )
     ).to.be.eventually.fulfilled
   })
-  // function AddSong(string _name, string _author,string _genre, uint8 _entryType,string _website,uint _totalSupply,string _symbol,string _description,string _soundcloud,bool _ico,uint _id)
-
-  // function addICO(address _wallet,uint256 _teamTokens,uint256[] constraints, uint256 _price, uint256 _durationDays, uint _presaleduration,uint8[] _bonuses,uint256 assignedTokens) public
 
   it('05. Adding ICO with added song for ICO should be fulfiled', async () => {
     var constraints = [0, 0, 0, 0, 0]

@@ -49,9 +49,10 @@ contract('Test Adding and Removing Songs with and without ICO', async accounts =
     console.log('    ***********************************************************')
     console.log(' ')
   })
+
   it('02. Should be able to add 2 new Songs without ICO', async () => {
     await expect(
-      TuneTraderContract.AddSong(
+      TuneTraderContract.addSong(
         'TEST',
         'TEST',
         'TEST',
@@ -70,7 +71,7 @@ contract('Test Adding and Removing Songs with and without ICO', async accounts =
     ).to.be.eventually.fulfilled
 
     await expect(
-      TuneTraderContract.AddSong(
+      TuneTraderContract.addSong(
         'TEST',
         'TEST',
         'TEST',
@@ -94,7 +95,7 @@ contract('Test Adding and Removing Songs with and without ICO', async accounts =
     var bonuses = [0, 0, 0, 0, 0, 0, 0, 0]
 
     await expect(
-      TuneTraderContract.AddSong(
+      TuneTraderContract.addSong(
         'Song Name',
         'Author',
         'Genre',
@@ -112,44 +113,45 @@ contract('Test Adding and Removing Songs with and without ICO', async accounts =
       )
     ).to.be.eventually.fulfilled
 
-    await TuneTraderContract.AddICO(saleWallet, teamTokens, constraints, rate, 10, 10, bonuses, assignTokens, {
+    await TuneTraderContract.addICO(saleWallet, teamTokens, constraints, rate, 10, 10, bonuses, assignTokens, {
       from: accounts[1]
     })
-    let mySongs = await TuneTraderContract.GetMySongs.call()
+    let mySongs = await TuneTraderContract.getMySongs.call()
     console.log(mySongs)
   })
+
   it('04. There should be three songs in Contract and two songs for accounts[1] ', async () => {
-    let songs = await TuneTraderContract.GetSongs.call()
+    let songs = await TuneTraderContract.getSongs.call()
     await expect(songs.length).to.be.equal(3)
 
-    let songs1 = await TuneTraderContract.GetMySongs.call({ from: accounts[1] })
+    let songs1 = await TuneTraderContract.getMySongs.call({ from: accounts[1] })
     await expect(songs1.length).to.be.equal(2)
   })
 
   it('05. Should be able to remove second song. Third song should become second one. ', async () => {
-    let songs = await TuneTraderContract.GetSongs.call()
+    let songs = await TuneTraderContract.getSongs.call()
     console.log('Remove song:', songs[1])
-    let res = await TuneTraderContract.Test.call(songs[1])
+    let res = await TuneTraderContract.getSongsLength.call(songs[1])
     console.log('MaxIndex:', res[0].toString())
     console.log('Index:', res[1].toString())
     console.log('Max Index Address:', res[2])
-    await TuneTraderContract.RemoveSong(songs[1])
-    let afterSongs = await TuneTraderContract.GetSongs.call()
+    await TuneTraderContract.removeSong(songs[1])
+    let afterSongs = await TuneTraderContract.getSongs.call()
     console.log(afterSongs)
     await expect(afterSongs.length).to.be.equal(2)
     await expect(songs[0]).to.be.equal(afterSongs[0])
     await expect(songs[2]).to.be.equal(afterSongs[1])
 
-    await expect(TuneTraderContract.RemoveSong(afterSongs[0], { from: accounts[1] })).to.be.eventually.rejected
-    await expect(TuneTraderContract.RemoveSong(afterSongs[0], { from: accounts[2] })).to.be.eventually.fulfilled
-    songs = await TuneTraderContract.GetSongs.call()
+    await expect(TuneTraderContract.removeSong(afterSongs[0], { from: accounts[1] })).to.be.eventually.rejected
+    await expect(TuneTraderContract.removeSong(afterSongs[0], { from: accounts[2] })).to.be.eventually.fulfilled
+    songs = await TuneTraderContract.getSongs.call()
     console.log(songs)
-    res = await TuneTraderContract.Test.call(songs[0])
+    res = await TuneTraderContract.getSongsLength.call(songs[0])
     console.log('MaxIndex:', res[0].toString())
     console.log('Index:', res[1].toString())
     console.log('Max Index Address:', res[2])
-    await expect(TuneTraderContract.RemoveSong(songs[0], { from: accounts[0] })).to.be.eventually.fulfilled
-    afterSongs = await TuneTraderContract.GetSongs.call()
+    await expect(TuneTraderContract.removeSong(songs[0], { from: accounts[0] })).to.be.eventually.fulfilled
+    afterSongs = await TuneTraderContract.getSongs.call()
     console.log(afterSongs)
     await expect(afterSongs.length).to.be.equal(0)
   })
