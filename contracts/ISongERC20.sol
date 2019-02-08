@@ -36,4 +36,6 @@ interface ISongERC20 {
 		uint256,
 		uint256
 	);
+
+    function getOwner() external view returns (address);
 }
