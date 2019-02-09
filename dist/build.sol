@@ -1327,6 +1327,18 @@ contract TuneTrader {
 		DS.pushAddress(DS.key(msg.sender, "usersSongs"), song);
 	}
 
+    function addExistingToken(address _songToken, address _owner) external {
+        require(msg.sender == owner, "addExistingToken: only the Administrator can add existing token.");
+
+        uint256 index = DS.pushAddress(DS.key('Songs'), _songToken);
+
+		DS.setAddress(DS.key(_songToken, "songOwner"), _owner);
+		DS.setBool(DS.key(_songToken, "songExist"), true);
+		DS.setUint(DS.key(_songToken, "songIndex"), index);
+
+		DS.pushAddress(DS.key(_owner, "usersSongs"), _songToken);
+    }
+
 	function removeSong(address _song) external {
 		require(_song != address(0), "removeSong: invalid song address");
 		SongsLib.removeSong(DS, _song, owner);
