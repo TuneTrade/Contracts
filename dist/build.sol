@@ -1235,17 +1235,32 @@ interface ITuneTraderManager {
 /**
  * @title TuneTrader
  */
-contract TuneTrader {
+contract TuneTrader is Ownable {
+    uint256 private _tokenFee;
+    uint256 private _icoFee;
+    uint256 private _lastFeeChangedAt;
+    uint256 private constant _delayForChangeFee = 30 days;
+
+    bool private _feesEnabled;
+
+	// address private constant _txtToken = 0xA57a2aD52AD6b1995F215b12fC037BffD990Bc5E;
+    address private constant _txtToken = 0x692a70D2e424a56D2C6C27aA97D1a86395877b3A;
+
 	IContractStorage public DS;
-	address payable public owner;
 
 	enum Type { Song, Band, Influencer }
 
 	/**
 	 * @dev TuneTrader Constructor
 	 */
-	constructor (IContractStorage _storage) public {
-		owner = msg.sender;
+	constructor (IContractStorage _storage, uint256 tokenFee, uint256 icoFee) public Ownable(msg.sender) {
+	    require(tokenFee != 0 && icoFee != 0, "TuneTrader: the fees should be bigger then 0 during contract deployement");
+
+        _tokenFee = tokenFee;
+		_icoFee = icoFee;
+        _feesEnabled = true;
+		_lastFeeChangedAt = block.timestamp;
+
 		DS = _storage;
 		DS.registerName("ContractOwner");
 		DS.registerName("userToSongICO");
@@ -1273,6 +1288,7 @@ contract TuneTrader {
 	)
 		public
   	{
+  	    require(_validateTokenPurchasing(_icoFee), "addICO: for creating the ICO user need to pay txt fee");
 		require(DS.getAddress(DS.key(msg.sender, "userToSongICO")) != address(0), "addICO: no Song assigned to this msg.sender to create ICO");
 
 		address songToken = DS.getAddress(DS.key(msg.sender, "userToSongICO"));
@@ -1311,6 +1327,8 @@ contract TuneTrader {
 	)
 		public
 	{
+	    require(_validateTokenPurchasing(_tokenFee), "addSong: for creating the token user need to pay txt fee");
+
 		address song = address(new SongERC20(msg.sender, _totalSupply, _name, _symbol, _decimals, _id));
 		ISongERC20(song).setDetails(_author, _genre, _entryType, _website, _soundcloud, _youtube, _description);
 
@@ -1327,22 +1345,56 @@ contract TuneTrader {
 		DS.pushAddress(DS.key(msg.sender, "usersSongs"), song);
 	}
 
-    function addExistingToken(address _songToken, address _owner) external {
-        require(msg.sender == owner, "addExistingToken: only the Administrator can add existing token.");
-
+    function addExistingToken(address _songToken, address _songOwner) external onlyOwner {
         uint256 index = DS.pushAddress(DS.key('Songs'), _songToken);
 
-		DS.setAddress(DS.key(_songToken, "songOwner"), _owner);
+		DS.setAddress(DS.key(_songToken, "songOwner"), _songOwner);
 		DS.setBool(DS.key(_songToken, "songExist"), true);
 		DS.setUint(DS.key(_songToken, "songIndex"), index);
 
-		DS.pushAddress(DS.key(_owner, "usersSongs"), _songToken);
+		DS.pushAddress(DS.key(_songOwner, "usersSongs"), _songToken);
     }
 
 	function removeSong(address _song) external {
 		require(_song != address(0), "removeSong: invalid song address");
-		SongsLib.removeSong(DS, _song, owner);
+		SongsLib.removeSong(DS, _song, owner());
 	}
+
+	function disableFees() external onlyOwner {
+	    _feesEnabled = !_feesEnabled;
+	}
+
+    function changeFees(uint256 tokenFee, uint256 icoFee) external onlyOwner {
+        require(tokenFee != 0 && icoFee !=0, "changeFees: the new fees should be bigger than 0");
+        require(block.timestamp >= _lastFeeChangedAt + _delayForChangeFee, "changeFees: the owner cant change the fee now");
+        require(_validateFeeChanging(_tokenFee, tokenFee), "changeFees: the new fee should be bigger from old fee max in 1 percent");
+        require(_validateFeeChanging(_icoFee, icoFee), "changeFees: the new fee should be bigger from old fee max in 1 percent");
+
+        _tokenFee = tokenFee;
+        _icoFee = icoFee;
+        _lastFeeChangedAt = block.timestamp;
+    }
+
+    function withdrawTokens(uint256 amount, address receiver) external onlyOwner {
+        IERC20(_txtToken).transfer(receiver, amount);
+    }
+
+    // -----------------------------------------
+	// INTERNAL
+	// -----------------------------------------
+
+	function _validateFeeChanging(uint256 oldFee, uint256 newFee) private pure returns (bool) {
+        uint256 onePercentOfOldFee = oldFee / 100;
+        return (oldFee + onePercentOfOldFee >= newFee);
+	}
+
+    function _validateTokenPurchasing(uint256 feeAmount) private returns (bool) {
+        if (_feesEnabled) {
+            return IERC20(_txtToken).transferFrom(msg.sender, owner(), feeAmount);
+        } else {
+	        return true;
+        }
+    }
 
 	// -----------------------------------------
 	// GETTERS
@@ -1365,9 +1417,17 @@ contract TuneTrader {
 		return DS.getAddress(DS.key(song, "songToSale"));
 	}
 
-	function getContractOwner() public view returns (address payable) {
-		return owner;
-	}
+    function getTokenFee() external view returns (uint256) {
+        return _tokenFee;
+    }
+
+    function getIcoFee() external view returns (uint256) {
+        return _icoFee;
+    }
+
+    function isFeesEnabled() external view returns (bool) {
+        return _feesEnabled;
+    }
 }
 
 // CONTRACT STORAGE
