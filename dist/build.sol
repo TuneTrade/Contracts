@@ -1251,15 +1251,22 @@ interface ITuneTraderManager {
  * @title TuneTrader
  */
 contract TuneTrader is Ownable {
-    uint256 private _tokenFee;
-    uint256 private _icoFee;
-    uint256 private _ethFee;
-    uint256 private _lastFeeChangedAt;
-    uint256 private constant _delayForChangeFee = 30 days;
+	// the user should pay service fee in TXT for creating a new token and ICO
+    uint256 public tokenCreationFeeTXT;
+    uint256 public icoCreationFeeTXT;
 
-    bool private _txtFeesEnabled;
+	// the x percent of investments (ETH) should go to the platform as a service fee
+    uint256 public icoInvestmentsFee;
 
-	address private constant _txtToken = 0xA57a2aD52AD6b1995F215b12fC037BffD990Bc5E;
+	// the admin can change fee after 30 days after the last change date
+    uint256 public lastFeeChangedAt;
+    uint256 public constant delayForChangeFee = 30 days;
+
+	// the admin can disable fees for creating token and ico
+    bool public txtFeesEnabled;
+
+	// the address of the TXT token in Mainnet
+	address public constant txtToken = 0xA57a2aD52AD6b1995F215b12fC037BffD990Bc5E;
 
 	IContractStorage public DS;
 
@@ -1268,14 +1275,14 @@ contract TuneTrader is Ownable {
 	/**
 	 * @dev TuneTrader Constructor
 	 */
-	constructor (IContractStorage _storage, uint256 tokenFee, uint256 icoFee, uint256 ethFee) public Ownable(msg.sender) {
-	    require(tokenFee != 0 && icoFee != 0, "TuneTrader: the fees should be bigger then 0 during contract deployement");
+	constructor (IContractStorage _storage, uint256 _tokenCreationFeeTXT, uint256 _icoCreationFeeTXT, uint256 _icoInvestmentsFee) public Ownable(msg.sender) {
+	    require(_tokenCreationFeeTXT != 0 && _icoCreationFeeTXT != 0, "TuneTrader: the fees should be bigger then 0");
 
-        _tokenFee = tokenFee;
-		_icoFee = icoFee;
-		_ethFee = ethFee;
-        _txtFeesEnabled = true;
-		_lastFeeChangedAt = block.timestamp;
+        tokenCreationFeeTXT = _tokenCreationFeeTXT;
+		icoCreationFeeTXT = _icoCreationFeeTXT;
+		icoInvestmentsFee = _icoInvestmentsFee;
+        txtFeesEnabled = true;
+		lastFeeChangedAt = block.timestamp;
 
 		DS = _storage;
 		DS.registerName("ContractOwner");
@@ -1288,6 +1295,14 @@ contract TuneTrader is Ownable {
 		DS.registerName("usersSongs");
 	}
 
+	/**
+	 * @dev fallback function
+	 * receiving ETH fee from the all crowdsales
+	 */
+	function () external payable {
+		// received ETH from crowdsale
+	}
+
 	// -----------------------------------------
 	// SETTERS
 	// -----------------------------------------
@@ -1295,7 +1310,7 @@ contract TuneTrader is Ownable {
 	function addICO(
 		address payable _wallet,
 		uint256 _teamTokens,
-		uint256[] memory constraints,
+		uint256[] memory _constraints,
 		uint256 _price,
 		uint256 _durationDays,
 		uint256 _presaleDuration,
@@ -1304,7 +1319,7 @@ contract TuneTrader is Ownable {
 	)
 		public
   	{
-  	    require(_validateTokenPurchasing(_icoFee), "addICO: for creating the ICO user need to pay txt fee");
+  	    require(_validateTokenPurchasing(icoCreationFeeTXT), "addICO: for creating the ICO user need to pay txt fee");
 		require(DS.getAddress(DS.key(msg.sender, "userToSongICO")) != address(0), "addICO: no Song assigned to this msg.sender to create ICO");
 
 		address songToken = DS.getAddress(DS.key(msg.sender, "userToSongICO"));
@@ -1313,12 +1328,12 @@ contract TuneTrader is Ownable {
 			_wallet,
 			IERC20(songToken),
 			_teamTokens,
-			constraints,
+			_constraints,
 			_durationDays,
 			_presaleDuration,
 			_bonuses,
 			msg.sender,
-			_ethFee
+			icoInvestmentsFee
 		);
 
 		ISongERC20(songToken).assignICOTokens(saleContract, assignedTokens);
@@ -1344,26 +1359,26 @@ contract TuneTrader is Ownable {
 	)
 		public
 	{
-	    require(_validateTokenPurchasing(_tokenFee), "addSong: for creating the token user need to pay txt fee");
+	    require(_validateTokenPurchasing(tokenCreationFeeTXT), "addSong: for creating the token user need to pay txt fee");
 
 		address song = address(new SongERC20(msg.sender, _totalSupply, _name, _symbol, _decimals, _id));
 		ISongERC20(song).setDetails(_author, _genre, _entryType, _website, _soundcloud, _youtube, _description);
 
-		uint256 index = DS.pushAddress(DS.key('Songs'), song);
+		uint256 index = DS.pushAddress(DS.key("Songs"), song);
 
 		DS.setAddress(DS.key(song, "songOwner"), msg.sender);
 		DS.setBool(DS.key(song, "songExist"), true);
 		DS.setUint(DS.key(song, "songIndex"), index);
 
 		if (_ico) {
-			DS.setAddress(DS.key(msg.sender, 'userToSongICO'), song);
+			DS.setAddress(DS.key(msg.sender, "userToSongICO"), song);
 		}
 
 		DS.pushAddress(DS.key(msg.sender, "usersSongs"), song);
 	}
 
     function addExistingToken(address _songToken, address _songOwner) external onlyOwner {
-        uint256 index = DS.pushAddress(DS.key('Songs'), _songToken);
+        uint256 index = DS.pushAddress(DS.key("Songs"), _songToken);
 
 		DS.setAddress(DS.key(_songToken, "songOwner"), _songOwner);
 		DS.setBool(DS.key(_songToken, "songExist"), true);
@@ -1378,24 +1393,28 @@ contract TuneTrader is Ownable {
 	}
 
 	function disableFees() external onlyOwner {
-	    _txtFeesEnabled = !_txtFeesEnabled;
+	    txtFeesEnabled = !txtFeesEnabled;
 	}
 
-    function changeFees(uint256 tokenFee, uint256 icoFee, uint256 ethFee) external onlyOwner {
-        require(tokenFee != 0 && icoFee != 0, "changeFees: the new fees should be bigger than 0");
-        require(block.timestamp >= _lastFeeChangedAt + _delayForChangeFee, "changeFees: the owner cant change the fee now");
-        require(_validateFeeChanging(_tokenFee, tokenFee), "changeFees: the new fee should be bigger from old fee max in 1 percent");
-        require(_validateFeeChanging(_icoFee, icoFee), "changeFees: the new fee should be bigger from old fee max in 1 percent");
-        require(_ethFee + 1 >= ethFee, "changeFees: the new fee should be bigger from old fee max in 1 percent");
+    function changeFees(uint256 _tokenCreationFeeTXT, uint256 _icoCreationFeeTXT, uint256 _icoInvestmentsFee) external onlyOwner {
+        require(_tokenCreationFeeTXT != 0 && _icoCreationFeeTXT != 0, "changeFees: the new fees should be bigger than 0");
+        require(block.timestamp >= lastFeeChangedAt + delayForChangeFee, "changeFees: the owner cant change the fee now");
+        require(_validateFeeChanging(tokenCreationFeeTXT, _tokenCreationFeeTXT), "changeFees: the new fee should be bigger from old fee max in 1 percent");
+        require(_validateFeeChanging(icoCreationFeeTXT, _icoCreationFeeTXT), "changeFees: the new fee should be bigger from old fee max in 1 percent");
+        require(icoInvestmentsFee + 1 >= _icoInvestmentsFee, "changeFees: the new fee should be bigger from old fee max in 1 percent");
 
-        _tokenFee = tokenFee;
-        _icoFee = icoFee;
-        _ethFee = ethFee;
-        _lastFeeChangedAt = block.timestamp;
+        tokenCreationFeeTXT = _tokenCreationFeeTXT;
+        icoCreationFeeTXT = _icoCreationFeeTXT;
+        icoInvestmentsFee = _icoInvestmentsFee;
+        lastFeeChangedAt = block.timestamp;
     }
 
     function withdrawTokens(uint256 amount, address receiver) external onlyOwner {
-        IERC20(_txtToken).transfer(receiver, amount);
+        IERC20(txtToken).transfer(receiver, amount);
+    }
+
+    function withdrawEth(uint256 weiAmount, address payable receiver) external onlyOwner {
+        receiver.transfer(weiAmount);
     }
 
     // -----------------------------------------
@@ -1408,8 +1427,8 @@ contract TuneTrader is Ownable {
 	}
 
     function _validateTokenPurchasing(uint256 feeAmount) private returns (bool) {
-        if (_txtFeesEnabled) {
-            return IERC20(_txtToken).transferFrom(msg.sender, owner(), feeAmount);
+        if (txtFeesEnabled) {
+            return IERC20(txtToken).transferFrom(msg.sender, owner(), feeAmount);
         } else {
 	        return true;
         }
@@ -1420,7 +1439,7 @@ contract TuneTrader is Ownable {
 	// -----------------------------------------
 
 	function getSongs() external view returns (address[] memory) {
-		return DS.getAddressTable(DS.key('Songs'));
+		return DS.getAddressTable(DS.key("Songs"));
 	}
 
 	function getMySongs() external view returns (address[] memory) {
@@ -1435,22 +1454,6 @@ contract TuneTrader is Ownable {
 		require(DS.getAddress(DS.key(song, "songToSale")) != address(0), "getICO: there is no sale for this song");
 		return DS.getAddress(DS.key(song, "songToSale"));
 	}
-
-    function getTokenFee() external view returns (uint256) {
-        return _tokenFee;
-    }
-
-    function getIcoFee() external view returns (uint256) {
-        return _icoFee;
-    }
-
-    function getIcoEthFee() external view returns (uint256) {
-        return _ethFee;
-    }
-
-    function isFeesEnabled() external view returns (bool) {
-        return _txtFeesEnabled;
-    }
 }
 
 // CONTRACT STORAGE
@@ -1795,6 +1798,17 @@ contract TTPositionManager {
  * @title TuneTraderExchange
  */
 contract TuneTraderExchange is Ownable {
+	// for creating an position user need to pay a fee
+    uint256 public fee;
+
+	// the admin can change fee after 30 days after the last change date
+    uint256 public lastFeeChangedAt;
+    uint256 private constant delayForChangeFee = 30 days;
+
+	// the admin can disable fees for creating token and ico
+	bool public feeEnabled;
+
+	// the address of created positions
 	address[] public positionsAddresses;
 
 	mapping (address => bool) public positionExist;
@@ -1810,8 +1824,13 @@ contract TuneTraderExchange is Ownable {
 	/**
 	 * @dev TuneTraderExchange Constructor
 	 */
-	constructor (address _DS) public Ownable(msg.sender) {
-		DS = IContractStorage(_DS);
+	constructor (IContractStorage _storage, uint256 _fee) public Ownable(msg.sender) {
+		require(_fee != 0, "TuneTraderExchange: the fee should be bigger then 0");
+
+		fee = _fee;
+		feeEnabled = true;
+
+		DS = _storage;
 		DS.registerName("positions");
 		DS.registerName("positionExist");
 		DS.registerName("positionIndex");
@@ -1821,19 +1840,23 @@ contract TuneTraderExchange is Ownable {
 	// SETTERS
 	// -----------------------------------------
 
-	function addPosition(address token, uint256 volume, bool buySell, uint256 cost) public payable {
-		require(buySell == false || msg.value == cost, "Buying positions must be created with ETH");
+	function addPosition(address token, uint256 volume, bool isBuyPosition, uint256 cost) public payable {
+	    if (isBuyPosition == false) {
+	        require(msg.value == fee, "addPosition: for creationg a positions user must pay a fee");
+	    } else {
+	        require(msg.value == cost + fee, "the buying positions must include some ETH in the msg plus fee");
+	    }
 
-		TTPositionManager manager = (new TTPositionManager).value(msg.value)(token, volume, buySell, cost, msg.sender);
-		uint256 index = DS.pushAddress(DS.key("positions"),address(manager));
-		DS.setBool(DS.key(address(manager), "positionExist"),true);
-		DS.setUint(DS.key(address(manager), "positionIndex"),index);
+		address manager = address((new TTPositionManager).value(msg.value - fee)(token, volume, isBuyPosition, cost, msg.sender));
+		uint256 index = DS.pushAddress(DS.key("positions"), manager);
+		DS.setBool(DS.key(manager, "positionExist"), true);
+		DS.setUint(DS.key(manager, "positionIndex"), index);
 
-		emit NewPosition(token, volume, buySell, cost, msg.sender);
+		emit NewPosition(token, volume, isBuyPosition, cost, msg.sender);
 	}
 
 	function terminatePosition(bool closedOrCancelled) external {
-		require((DS.getBool(DS.key(msg.sender, "positionExist")) == true), "Position must exist on the list");
+		require((DS.getBool(DS.key(msg.sender, "positionExist")) == true), "terminatePosition: Position must exist on the list");
 
 		uint256 index = DS.getUint(DS.key(msg.sender, "positionIndex"));
 		uint256 maxIndex = getPositionsCount() - 1;
@@ -1853,6 +1876,31 @@ contract TuneTraderExchange is Ownable {
 		} else {
 			emit PositionCancelled(msg.sender);
 		}
+	}
+
+    function withdrawEth(uint256 weiAmount, address payable receiver) external onlyOwner {
+        receiver.transfer(weiAmount);
+    }
+
+	function changeFee(uint256 _newFee) external onlyOwner {
+        require(block.timestamp >= lastFeeChangedAt + delayForChangeFee, "changeFee: the owner can't change the fee now");
+        require(_validateFeeChanging(fee, _newFee), "changeFee: the new fee should be bigger from old fee max in 1 percent");
+
+        fee = _newFee;
+        lastFeeChangedAt = block.timestamp;
+    }
+
+	function disableFee() external onlyOwner {
+	    feeEnabled = !feeEnabled;
+	}
+
+	// -----------------------------------------
+	// INTERNAL
+	// -----------------------------------------
+
+	function _validateFeeChanging(uint256 oldFee, uint256 newFee) private pure returns (bool) {
+        uint256 onePercentOfOldFee = oldFee / 100;
+        return (oldFee + onePercentOfOldFee >= newFee);
 	}
 
 	// -----------------------------------------

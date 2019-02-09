@@ -8,6 +8,17 @@ import "./IContractStorage.sol";
  * @title TuneTraderExchange
  */
 contract TuneTraderExchange is Ownable {
+	// for creating an position user need to pay a fee
+    uint256 public fee;
+
+	// the admin can change fee after 30 days after the last change date
+    uint256 public lastFeeChangedAt;
+    uint256 private constant delayForChangeFee = 30 days;
+
+	// the admin can disable fees for creating token and ico
+	bool public feeEnabled;
+
+	// the address of created positions
 	address[] public positionsAddresses;
 
 	mapping (address => bool) public positionExist;
@@ -23,8 +34,13 @@ contract TuneTraderExchange is Ownable {
 	/**
 	 * @dev TuneTraderExchange Constructor
 	 */
-	constructor (address _DS) public Ownable(msg.sender) {
-		DS = IContractStorage(_DS);
+	constructor (IContractStorage _storage, uint256 _fee) public Ownable(msg.sender) {
+		require(_fee != 0, "TuneTraderExchange: the fee should be bigger then 0");
+
+		fee = _fee;
+		feeEnabled = true;
+
+		DS = _storage;
 		DS.registerName("positions");
 		DS.registerName("positionExist");
 		DS.registerName("positionIndex");
@@ -34,19 +50,23 @@ contract TuneTraderExchange is Ownable {
 	// SETTERS
 	// -----------------------------------------
 
-	function addPosition(address token, uint256 volume, bool buySell, uint256 cost) public payable {
-		require(buySell == false || msg.value == cost, "Buying positions must be created with ETH");
+	function addPosition(address token, uint256 volume, bool isBuyPosition, uint256 cost) public payable {
+	    if (isBuyPosition == false) {
+	        require(msg.value == fee, "addPosition: for creationg a positions user must pay a fee");
+	    } else {
+	        require(msg.value == cost + fee, "the buying positions must include some ETH in the msg plus fee");
+	    }
 
-		TTPositionManager manager = (new TTPositionManager).value(msg.value)(token, volume, buySell, cost, msg.sender);
-		uint256 index = DS.pushAddress(DS.key("positions"),address(manager));
-		DS.setBool(DS.key(address(manager), "positionExist"),true);
-		DS.setUint(DS.key(address(manager), "positionIndex"),index);
+		address manager = address((new TTPositionManager).value(msg.value - fee)(token, volume, isBuyPosition, cost, msg.sender));
+		uint256 index = DS.pushAddress(DS.key("positions"), manager);
+		DS.setBool(DS.key(manager, "positionExist"), true);
+		DS.setUint(DS.key(manager, "positionIndex"), index);
 
-		emit NewPosition(token, volume, buySell, cost, msg.sender);
+		emit NewPosition(token, volume, isBuyPosition, cost, msg.sender);
 	}
 
 	function terminatePosition(bool closedOrCancelled) external {
-		require((DS.getBool(DS.key(msg.sender, "positionExist")) == true), "Position must exist on the list");
+		require((DS.getBool(DS.key(msg.sender, "positionExist")) == true), "terminatePosition: Position must exist on the list");
 
 		uint256 index = DS.getUint(DS.key(msg.sender, "positionIndex"));
 		uint256 maxIndex = getPositionsCount() - 1;
@@ -66,6 +86,31 @@ contract TuneTraderExchange is Ownable {
 		} else {
 			emit PositionCancelled(msg.sender);
 		}
+	}
+
+    function withdrawEth(uint256 weiAmount, address payable receiver) external onlyOwner {
+        receiver.transfer(weiAmount);
+    }
+
+	function changeFee(uint256 _newFee) external onlyOwner {
+        require(block.timestamp >= lastFeeChangedAt + delayForChangeFee, "changeFee: the owner can't change the fee now");
+        require(_validateFeeChanging(fee, _newFee), "changeFee: the new fee should be bigger from old fee max in 1 percent");
+
+        fee = _newFee;
+        lastFeeChangedAt = block.timestamp;
+    }
+
+	function disableFee() external onlyOwner {
+	    feeEnabled = !feeEnabled;
+	}
+
+	// -----------------------------------------
+	// INTERNAL
+	// -----------------------------------------
+
+	function _validateFeeChanging(uint256 oldFee, uint256 newFee) private pure returns (bool) {
+        uint256 onePercentOfOldFee = oldFee / 100;
+        return (oldFee + onePercentOfOldFee >= newFee);
 	}
 
 	// -----------------------------------------

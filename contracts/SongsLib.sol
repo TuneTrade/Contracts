@@ -17,7 +17,8 @@ library SongsLib {
 		uint256 durationDays,
 		uint256 presaleDuration,
 		uint8[] calldata bonuses,
-		address sender
+		address sender,
+		uint256 fee
     ) external returns (address) {
         return address(new SongCrowdsale(
 			price,
@@ -28,7 +29,8 @@ library SongsLib {
 			durationDays,
 			presaleDuration,
 			bonuses,
-			sender
+			sender,
+			fee
 		));
     }
 

@@ -14,6 +14,7 @@ contract SongCrowdsale is ReentrancyGuard, Ownable {
 	using SafeMath for uint256;
 
 	uint256 public rate;
+	uint256 public fee;
 	uint256 public weiRaised;
 	uint256 public teamTokens;
 
@@ -48,6 +49,7 @@ contract SongCrowdsale is ReentrancyGuard, Ownable {
 
 	// Address where funds will collected
 	address payable public wallet;
+	address payable public tuneTrader;
 
 	bool public closed;
 	bool public refundAvailable;
@@ -86,7 +88,8 @@ contract SongCrowdsale is ReentrancyGuard, Ownable {
 		uint256 _duration,
 		uint256 _presaleduration,
 		uint8[] memory bonuses,
-		address _owner
+		address _owner,
+		uint256 _fee
 	) public Ownable(_owner) {
 		require(_rate > 0, "SongCrowdsale: the rate should be bigger then zero");
 		require(_wallet != address(0), "SongCrowdsale: invalid wallet address");
@@ -94,6 +97,8 @@ contract SongCrowdsale is ReentrancyGuard, Ownable {
 
 		rate = _rate;
 		wallet = _wallet;
+		tuneTrader = msg.sender;
+		fee = _fee;
 		token = _song;
 		minPreSaleETH = constraints[0];
 		minMainSaleETH = constraints[1];
@@ -201,7 +206,7 @@ contract SongCrowdsale is ReentrancyGuard, Ownable {
 		require(msg.sender == wallet, "withdrawFunds: only wallet address can withdraw funds");
 		require(_campaignState() == State.Ended, "withdrawFunds: sale must be ended to receive funds");
 
-		wallet.transfer(address(this).balance);
+	    _forwardFunds(address(this).balance);
 		closed = true;
 
 		return true;
@@ -254,15 +259,23 @@ contract SongCrowdsale is ReentrancyGuard, Ownable {
 		token.transfer(_beneficiary, _tokenAmount);
 
 		if (isRefundable == false) {
-			_forwardFunds();
+			_forwardFunds(msg.value);
 		}
 	}
 
 	/**
 	 * @dev Determines how ETH is stored/forwarded on purchases.
 	 */
-	function _forwardFunds() private {
-		wallet.transfer(msg.value);
+	function _forwardFunds(uint256 weiAmount) private {
+	    if (fee != 0) {
+	       	uint256 feeAmount = weiAmount.mul(fee).div(100);
+    	    uint256 investment = weiAmount.sub(feeAmount);
+
+            tuneTrader.transfer(feeAmount);
+    		wallet.transfer(investment);
+	    } else {
+	        wallet.transfer(weiAmount);
+	    }
 	}
 
 	/**
