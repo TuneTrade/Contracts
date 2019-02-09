@@ -58,7 +58,7 @@ contract TuneTrader is Ownable {
 	 * receiving ETH fee from the all crowdsales
 	 */
 	function () external payable {
-		// received ETH from crowdsale
+		// received ETH from crowdsales
 	}
 
 	// -----------------------------------------
@@ -122,21 +122,21 @@ contract TuneTrader is Ownable {
 		address song = address(new SongERC20(msg.sender, _totalSupply, _name, _symbol, _decimals, _id));
 		ISongERC20(song).setDetails(_author, _genre, _entryType, _website, _soundcloud, _youtube, _description);
 
-		uint256 index = DS.pushAddress(DS.key("Songs"), song);
+		uint256 index = DS.pushAddress(DS.key('Songs'), song);
 
 		DS.setAddress(DS.key(song, "songOwner"), msg.sender);
 		DS.setBool(DS.key(song, "songExist"), true);
 		DS.setUint(DS.key(song, "songIndex"), index);
 
 		if (_ico) {
-			DS.setAddress(DS.key(msg.sender, "userToSongICO"), song);
+			DS.setAddress(DS.key(msg.sender, 'userToSongICO'), song);
 		}
 
 		DS.pushAddress(DS.key(msg.sender, "usersSongs"), song);
 	}
 
     function addExistingToken(address _songToken, address _songOwner) external onlyOwner {
-        uint256 index = DS.pushAddress(DS.key("Songs"), _songToken);
+        uint256 index = DS.pushAddress(DS.key('Songs'), _songToken);
 
 		DS.setAddress(DS.key(_songToken, "songOwner"), _songOwner);
 		DS.setBool(DS.key(_songToken, "songExist"), true);
@@ -186,7 +186,7 @@ contract TuneTrader is Ownable {
 
     function _validateTokenPurchasing(uint256 feeAmount) private returns (bool) {
         if (txtFeesEnabled) {
-            return IERC20(txtToken).transferFrom(msg.sender, owner(), feeAmount);
+            return IERC20(txtToken).transferFrom(msg.sender, address(this), feeAmount);
         } else {
 	        return true;
         }
@@ -197,7 +197,7 @@ contract TuneTrader is Ownable {
 	// -----------------------------------------
 
 	function getSongs() external view returns (address[] memory) {
-		return DS.getAddressTable(DS.key("Songs"));
+		return DS.getAddressTable(DS.key('Songs'));
 	}
 
 	function getMySongs() external view returns (address[] memory) {
