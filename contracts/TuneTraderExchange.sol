@@ -51,13 +51,16 @@ contract TuneTraderExchange is Ownable {
 	// -----------------------------------------
 
 	function addPosition(address token, uint256 volume, bool isBuyPosition, uint256 cost) public payable {
-	    if (isBuyPosition == false) {
-	        require(msg.value == fee, "addPosition: for creationg a positions user must pay a fee");
-	    } else {
-	        require(msg.value == cost + fee, "the buying positions must include some ETH in the msg plus fee");
-	    }
+		// if the feeEnabled is disabled we gonna use 0 fee for calculation
+		uint256 _fee = feeEnabled ? fee : 0;
 
-		address manager = address((new TTPositionManager).value(msg.value - fee)(token, volume, isBuyPosition, cost, msg.sender));
+		if (isBuyPosition == false) {
+			require(msg.value == _fee, "addPosition: for creationg a positions user must pay a fee");
+		} else {
+			require(msg.value == cost + _fee, "addPosition: the buying positions must include some ETH in the msg plus fee");
+		}
+
+		address manager = address((new TTPositionManager).value(msg.value - _fee)(token, volume, isBuyPosition, cost, msg.sender));
 		uint256 index = DS.pushAddress(DS.key("positions"), manager);
 		DS.setBool(DS.key(manager, "positionExist"), true);
 		DS.setUint(DS.key(manager, "positionIndex"), index);
