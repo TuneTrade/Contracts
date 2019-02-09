@@ -665,6 +665,7 @@ contract SongCrowdsale is ReentrancyGuard, Ownable {
 	using SafeMath for uint256;
 
 	uint256 public rate;
+	uint256 public fee;
 	uint256 public weiRaised;
 	uint256 public teamTokens;
 
@@ -699,6 +700,7 @@ contract SongCrowdsale is ReentrancyGuard, Ownable {
 
 	// Address where funds will collected
 	address payable public wallet;
+	address payable public tuneTrader;
 
 	bool public closed;
 	bool public refundAvailable;
@@ -737,7 +739,8 @@ contract SongCrowdsale is ReentrancyGuard, Ownable {
 		uint256 _duration,
 		uint256 _presaleduration,
 		uint8[] memory bonuses,
-		address _owner
+		address _owner,
+		uint256 _fee
 	) public Ownable(_owner) {
 		require(_rate > 0, "SongCrowdsale: the rate should be bigger then zero");
 		require(_wallet != address(0), "SongCrowdsale: invalid wallet address");
@@ -745,6 +748,8 @@ contract SongCrowdsale is ReentrancyGuard, Ownable {
 
 		rate = _rate;
 		wallet = _wallet;
+		tuneTrader = msg.sender;
+		fee = _fee;
 		token = _song;
 		minPreSaleETH = constraints[0];
 		minMainSaleETH = constraints[1];
@@ -852,7 +857,7 @@ contract SongCrowdsale is ReentrancyGuard, Ownable {
 		require(msg.sender == wallet, "withdrawFunds: only wallet address can withdraw funds");
 		require(_campaignState() == State.Ended, "withdrawFunds: sale must be ended to receive funds");
 
-		wallet.transfer(address(this).balance);
+	    _forwardFunds(address(this).balance);
 		closed = true;
 
 		return true;
@@ -905,15 +910,23 @@ contract SongCrowdsale is ReentrancyGuard, Ownable {
 		token.transfer(_beneficiary, _tokenAmount);
 
 		if (isRefundable == false) {
-			_forwardFunds();
+			_forwardFunds(msg.value);
 		}
 	}
 
 	/**
 	 * @dev Determines how ETH is stored/forwarded on purchases.
 	 */
-	function _forwardFunds() private {
-		wallet.transfer(msg.value);
+	function _forwardFunds(uint256 weiAmount) private {
+	    if (fee != 0) {
+	       	uint256 feeAmount = weiAmount.mul(fee).div(100);
+    	    uint256 investment = weiAmount.sub(feeAmount);
+
+            tuneTrader.transfer(feeAmount);
+    		wallet.transfer(investment);
+	    } else {
+	        wallet.transfer(weiAmount);
+	    }
 	}
 
 	/**
@@ -1171,7 +1184,8 @@ library SongsLib {
 		uint256 durationDays,
 		uint256 presaleDuration,
 		uint8[] calldata bonuses,
-		address sender
+		address sender,
+		uint256 fee
     ) external returns (address) {
         return address(new SongCrowdsale(
 			price,
@@ -1182,7 +1196,8 @@ library SongsLib {
 			durationDays,
 			presaleDuration,
 			bonuses,
-			sender
+			sender,
+			fee
 		));
     }
 
@@ -1238,13 +1253,13 @@ interface ITuneTraderManager {
 contract TuneTrader is Ownable {
     uint256 private _tokenFee;
     uint256 private _icoFee;
+    uint256 private _ethFee;
     uint256 private _lastFeeChangedAt;
     uint256 private constant _delayForChangeFee = 30 days;
 
-    bool private _feesEnabled;
+    bool private _txtFeesEnabled;
 
-	// address private constant _txtToken = 0xA57a2aD52AD6b1995F215b12fC037BffD990Bc5E;
-    address private constant _txtToken = 0x692a70D2e424a56D2C6C27aA97D1a86395877b3A;
+	address private constant _txtToken = 0xA57a2aD52AD6b1995F215b12fC037BffD990Bc5E;
 
 	IContractStorage public DS;
 
@@ -1253,12 +1268,13 @@ contract TuneTrader is Ownable {
 	/**
 	 * @dev TuneTrader Constructor
 	 */
-	constructor (IContractStorage _storage, uint256 tokenFee, uint256 icoFee) public Ownable(msg.sender) {
+	constructor (IContractStorage _storage, uint256 tokenFee, uint256 icoFee, uint256 ethFee) public Ownable(msg.sender) {
 	    require(tokenFee != 0 && icoFee != 0, "TuneTrader: the fees should be bigger then 0 during contract deployement");
 
         _tokenFee = tokenFee;
 		_icoFee = icoFee;
-        _feesEnabled = true;
+		_ethFee = ethFee;
+        _txtFeesEnabled = true;
 		_lastFeeChangedAt = block.timestamp;
 
 		DS = _storage;
@@ -1301,7 +1317,8 @@ contract TuneTrader is Ownable {
 			_durationDays,
 			_presaleDuration,
 			_bonuses,
-			msg.sender
+			msg.sender,
+			_ethFee
 		);
 
 		ISongERC20(songToken).assignICOTokens(saleContract, assignedTokens);
@@ -1361,17 +1378,19 @@ contract TuneTrader is Ownable {
 	}
 
 	function disableFees() external onlyOwner {
-	    _feesEnabled = !_feesEnabled;
+	    _txtFeesEnabled = !_txtFeesEnabled;
 	}
 
-    function changeFees(uint256 tokenFee, uint256 icoFee) external onlyOwner {
-        require(tokenFee != 0 && icoFee !=0, "changeFees: the new fees should be bigger than 0");
+    function changeFees(uint256 tokenFee, uint256 icoFee, uint256 ethFee) external onlyOwner {
+        require(tokenFee != 0 && icoFee != 0, "changeFees: the new fees should be bigger than 0");
         require(block.timestamp >= _lastFeeChangedAt + _delayForChangeFee, "changeFees: the owner cant change the fee now");
         require(_validateFeeChanging(_tokenFee, tokenFee), "changeFees: the new fee should be bigger from old fee max in 1 percent");
         require(_validateFeeChanging(_icoFee, icoFee), "changeFees: the new fee should be bigger from old fee max in 1 percent");
+        require(_ethFee + 1 >= ethFee, "changeFees: the new fee should be bigger from old fee max in 1 percent");
 
         _tokenFee = tokenFee;
         _icoFee = icoFee;
+        _ethFee = ethFee;
         _lastFeeChangedAt = block.timestamp;
     }
 
@@ -1389,7 +1408,7 @@ contract TuneTrader is Ownable {
 	}
 
     function _validateTokenPurchasing(uint256 feeAmount) private returns (bool) {
-        if (_feesEnabled) {
+        if (_txtFeesEnabled) {
             return IERC20(_txtToken).transferFrom(msg.sender, owner(), feeAmount);
         } else {
 	        return true;
@@ -1425,8 +1444,12 @@ contract TuneTrader is Ownable {
         return _icoFee;
     }
 
+    function getIcoEthFee() external view returns (uint256) {
+        return _ethFee;
+    }
+
     function isFeesEnabled() external view returns (bool) {
-        return _feesEnabled;
+        return _txtFeesEnabled;
     }
 }
 
